@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vecport"
+version = "0.0.1"
+description = "A vendor-neutral connectivity layer for vector databases."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+
+dependencies = []
+
+[project.optional-dependencies]
+qdrant = [
+    "qdrant-client"
+]
+
+pinecone = [
+    "pinecone"
+]
+
+dev = [
+    "pytest",
+    "ruff",
+    "mypy"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
