@@ -3,6 +3,7 @@ from vecport.core.models import (
     SearchResult,
     VectorRecord,
 )
+from vecport.drivers.pinecone import PineconeDriver
 from vecport.drivers.qdrant import QdrantDriver
 
 
@@ -12,6 +13,9 @@ def connect(
 ):
     if driver == "qdrant":
         return QdrantDriver(**kwargs)
+
+    if driver == "pinecone":
+        return PineconeDriver(**kwargs)
 
     raise ValueError(
         f"Unsupported VecPort driver: {driver}"
