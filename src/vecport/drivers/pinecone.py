@@ -25,16 +25,33 @@ class PineconeDriver(VectorDatabase):
         self.cloud = cloud
         self.region = region
 
+    def _normalize_index_name(
+        self,
+        name: str,
+    ) -> str:
+
+        return (
+            name
+            .lower()
+            .replace("_", "-")
+        )
+
     def create_collection(
         self,
         name: str,
         dimension: int,
     ) -> None:
 
-        if not self.client.has_index(name):
+        index_name = self._normalize_index_name(
+            name
+        )
+
+        if not self.client.has_index(
+            index_name
+        ):
 
             self.client.create_index(
-                name=name,
+                name=index_name,
                 dimension=dimension,
                 metric="cosine",
                 spec=ServerlessSpec(
@@ -44,7 +61,7 @@ class PineconeDriver(VectorDatabase):
             )
 
             while not self.client.describe_index(
-                name
+                index_name
             ).status["ready"]:
                 time.sleep(1)
 
@@ -53,8 +70,16 @@ class PineconeDriver(VectorDatabase):
         name: str,
     ) -> None:
 
-        if self.client.has_index(name):
-            self.client.delete_index(name)
+        index_name = self._normalize_index_name(
+            name
+        )
+
+        if self.client.has_index(
+            index_name
+        ):
+            self.client.delete_index(
+                index_name
+            )
 
     def upsert(
         self,
@@ -62,7 +87,13 @@ class PineconeDriver(VectorDatabase):
         records: list[VectorRecord],
     ) -> None:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         vectors = [
             {
@@ -83,7 +114,13 @@ class PineconeDriver(VectorDatabase):
         ids: list[str],
     ) -> list[VectorRecord]:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         response = index.fetch(
             ids=ids
@@ -105,7 +142,13 @@ class PineconeDriver(VectorDatabase):
         ids: list[str],
     ) -> None:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         index.delete(
             ids=ids
@@ -118,7 +161,13 @@ class PineconeDriver(VectorDatabase):
         top_k: int = 10,
     ) -> list[SearchResult]:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         response = index.query(
             vector=vector,
