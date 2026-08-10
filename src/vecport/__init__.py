@@ -6,6 +6,14 @@ from vecport.core.models import (
 from vecport.drivers.pinecone import PineconeDriver
 from vecport.drivers.qdrant import QdrantDriver
 
+from vecport.drivers.weaviate import WeaviateDriver
+
+from vecport.drivers.milvus import MilvusDriver
+
+from vecport.drivers.pgvector import PgVectorDriver
+
+from vecport.core.errors import DriverNotFoundError
+
 
 def connect(
     driver: str,
@@ -17,10 +25,23 @@ def connect(
     if driver == "pinecone":
         return PineconeDriver(**kwargs)
 
-    raise ValueError(
-        f"Unsupported VecPort driver: {driver}"
+    if driver == "weaviate":
+        return WeaviateDriver(**kwargs)
+
+    if driver == "milvus":
+        return MilvusDriver(**kwargs)
+
+    if driver == "pgvector":
+        return PgVectorDriver(**kwargs)
+
+    
+    from vecport.core.errors import (
+        DriverNotFoundError,
     )
 
+    raise DriverNotFoundError(
+        f"Unsupported VecPort driver: {driver}"
+    )
 
 __all__ = [
     "connect",

@@ -9,6 +9,8 @@ from vecport.core.models import (
     VectorRecord,
 )
 
+from vecport.core.filters import validate_filter
+
 
 class PineconeDriver(VectorDatabase):
 
@@ -25,16 +27,33 @@ class PineconeDriver(VectorDatabase):
         self.cloud = cloud
         self.region = region
 
+    def _normalize_index_name(
+        self,
+        name: str,
+    ) -> str:
+
+        return (
+            name
+            .lower()
+            .replace("_", "-")
+        )
+
     def create_collection(
         self,
         name: str,
         dimension: int,
     ) -> None:
 
-        if not self.client.has_index(name):
+        index_name = self._normalize_index_name(
+            name
+        )
+
+        if not self.client.has_index(
+            index_name
+        ):
 
             self.client.create_index(
-                name=name,
+                name=index_name,
                 dimension=dimension,
                 metric="cosine",
                 spec=ServerlessSpec(
@@ -44,7 +63,7 @@ class PineconeDriver(VectorDatabase):
             )
 
             while not self.client.describe_index(
-                name
+                index_name
             ).status["ready"]:
                 time.sleep(1)
 
@@ -53,8 +72,16 @@ class PineconeDriver(VectorDatabase):
         name: str,
     ) -> None:
 
-        if self.client.has_index(name):
-            self.client.delete_index(name)
+        index_name = self._normalize_index_name(
+            name
+        )
+
+        if self.client.has_index(
+            index_name
+        ):
+            self.client.delete_index(
+                index_name
+            )
 
     def upsert(
         self,
@@ -62,7 +89,13 @@ class PineconeDriver(VectorDatabase):
         records: list[VectorRecord],
     ) -> None:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         vectors = [
             {
@@ -83,7 +116,13 @@ class PineconeDriver(VectorDatabase):
         ids: list[str],
     ) -> list[VectorRecord]:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         response = index.fetch(
             ids=ids
@@ -105,7 +144,13 @@ class PineconeDriver(VectorDatabase):
         ids: list[str],
     ) -> None:
 
-        index = self.client.Index(collection)
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
 
         index.delete(
             ids=ids
@@ -116,14 +161,30 @@ class PineconeDriver(VectorDatabase):
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
 
-        index = self.client.Index(collection)
+        validate_filter(filters)
+
+        index_name = self._normalize_index_name(
+            collection
+        )
+
+        index = self.client.Index(
+            index_name
+        )
+
+        query_args = {
+            "vector": vector,
+            "top_k": top_k,
+            "include_metadata": True,
+        }
+
+        if filters:
+            query_args["filter"] = filters
 
         response = index.query(
-            vector=vector,
-            top_k=top_k,
-            include_metadata=True,
+            **query_args
         )
 
         return [
@@ -142,8 +203,19 @@ class PineconeDriver(VectorDatabase):
         return Capabilities(
             dense_vector=True,
             metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
             sparse_vector=True,
             hybrid_search=True,
-            namespaces=True,
+            namespaces=False,
             named_vectors=False,
         )

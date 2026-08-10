@@ -1,21 +1,14 @@
-import os
+import time
 
 from vecport import VectorRecord, connect
 
 
-# =========================
-# ここだけでDBを選択
-# =========================
+print("1. Milvusに接続します")
 
-db = connect(
-    "pinecone",
-    api_key=os.environ["PINECONE_API_KEY"],
-)
+db = connect("pgvector")
 
 
-# =========================
-# ここから下は共通コード
-# =========================
+print("2. Collectionを作成します")
 
 db.create_collection(
     name="documents",
@@ -23,16 +16,14 @@ db.create_collection(
 )
 
 
+print("3. データを保存します")
+
 db.upsert(
     collection="documents",
     records=[
         VectorRecord(
-            id="550e8400-e29b-41d4-a716-446655440000",
-            vector=[
-                1.0,
-                0.0,
-                0.0,
-            ],
+            id="1",
+            vector=[1.0, 0.0, 0.0],
             metadata={
                 "text": "AI"
             },
@@ -40,23 +31,25 @@ db.upsert(
     ],
 )
 
+time.sleep(2)
+
+
+print("4. 検索します")
 
 results = db.search(
     collection="documents",
-    vector=[
-        1.0,
-        0.0,
-        0.0,
-    ],
+    vector=[1.0, 0.0, 0.0],
     top_k=5,
 )
 
 
-print("Search results:")
+print("5. 検索結果件数:", len(results))
 
 for result in results:
-    print(
-        result.id,
-        result.score,
-        result.metadata,
-    )
+    print(result)
+
+
+if results:
+    print("VecPort -> Milvus 接続成功")
+else:
+    print("検索結果が0件です")
