@@ -10,6 +10,8 @@ from vecport.core.models import (
     VectorRecord,
 )
 
+from vecport.core.filters import validate_filter
+
 
 class PgVectorDriver(VectorDatabase):
 
@@ -145,7 +147,20 @@ class PgVectorDriver(VectorDatabase):
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
+
+        validate_filter(filters)
+
+        where_sql, where_params = (
+            self._build_filter(filters)
+        )
+
+        where_clause = (
+            f"WHERE {where_sql}"
+            if where_sql
+            else ""
+        )
 
         rows = self.conn.execute(
             f"""
@@ -154,11 +169,13 @@ class PgVectorDriver(VectorDatabase):
                 metadata,
                 1 - (vector <=> %s::vector) AS score
             FROM "{collection}"
+            {where_clause}
             ORDER BY vector <=> %s::vector
             LIMIT %s
             """,
             (
                 vector,
+                *where_params,
                 vector,
                 top_k,
             ),
@@ -180,8 +197,163 @@ class PgVectorDriver(VectorDatabase):
         return Capabilities(
             dense_vector=True,
             metadata_filter=True,
-            sparse_vector=False,
-            hybrid_search=False,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
+            sparse_vector=True,
+            hybrid_search=True,
             namespaces=False,
             named_vectors=False,
+        )
+    
+    def _build_filter(
+        self,
+        filters: dict | None,
+    ):
+
+        if not filters:
+            return "", []
+
+        clauses = []
+        params = []
+
+        for key, condition in filters.items():
+
+            if key == "$and":
+
+                child_clauses = []
+                child_params = []
+
+                for item in condition:
+
+                    sql, values = self._build_filter(
+                        item
+                    )
+
+                    child_clauses.append(
+                        f"({sql})"
+                    )
+
+                    child_params.extend(
+                        values
+                    )
+
+                return (
+                    " AND ".join(child_clauses),
+                    child_params,
+                )
+
+            if key == "$or":
+
+                child_clauses = []
+                child_params = []
+
+                for item in condition:
+
+                    sql, values = self._build_filter(
+                        item
+                    )
+
+                    child_clauses.append(
+                        f"({sql})"
+                    )
+
+                    child_params.extend(
+                        values
+                    )
+
+                return (
+                    " OR ".join(child_clauses),
+                    child_params,
+                )
+
+            for operator, value in condition.items():
+
+                if operator == "$eq":
+
+                    clauses.append(
+                        "(metadata ->> %s) = %s"
+                    )
+
+                    params.extend(
+                        [
+                            key,
+                            str(value),
+                        ]
+                    )
+
+                elif operator == "$ne":
+
+                    clauses.append(
+                        "(metadata ->> %s) != %s"
+                    )
+
+                    params.extend(
+                        [
+                            key,
+                            str(value),
+                        ]
+                    )
+
+                elif operator in {
+                    "$gt",
+                    "$gte",
+                    "$lt",
+                    "$lte",
+                }:
+
+                    sql_operator = {
+                        "$gt": ">",
+                        "$gte": ">=",
+                        "$lt": "<",
+                        "$lte": "<=",
+                    }[operator]
+
+                    clauses.append(
+                        "(metadata ->> %s)::double precision "
+                        + sql_operator
+                        + " %s"
+                    )
+
+                    params.extend(
+                        [
+                            key,
+                            value,
+                        ]
+                    )
+
+                elif operator == "$in":
+
+                    placeholders = ", ".join(
+                        ["%s"] * len(value)
+                    )
+
+                    clauses.append(
+                        f"(metadata ->> %s) IN ({placeholders})"
+                    )
+
+                    params.append(key)
+
+                    params.extend(
+                        str(item)
+                        for item in value
+                    )
+
+                else:
+
+                    raise ValueError(
+                        f"Unsupported VecPort filter operator: {operator}"
+                    )
+
+        return (
+            " AND ".join(clauses),
+            params,
         )

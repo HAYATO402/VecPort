@@ -12,6 +12,8 @@ from vecport.drivers.milvus import MilvusDriver
 
 from vecport.drivers.pgvector import PgVectorDriver
 
+from vecport.core.errors import DriverNotFoundError
+
 
 def connect(
     driver: str,
@@ -32,10 +34,14 @@ def connect(
     if driver == "pgvector":
         return PgVectorDriver(**kwargs)
 
-    raise ValueError(
-        f"Unsupported VecPort driver: {driver}"
+    
+    from vecport.core.errors import (
+        DriverNotFoundError,
     )
 
+    raise DriverNotFoundError(
+        f"Unsupported VecPort driver: {driver}"
+    )
 
 __all__ = [
     "connect",

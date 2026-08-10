@@ -9,6 +9,9 @@ from vecport.core.models import (
     VectorRecord,
 )
 
+from weaviate.classes.query import Filter
+
+from vecport.core.filters import validate_filter
 
 class WeaviateDriver(VectorDatabase):
 
@@ -50,14 +53,27 @@ class WeaviateDriver(VectorDatabase):
         records: list[VectorRecord],
     ) -> None:
 
-        col = self.client.collections.get(collection)
+        col = self.client.collections.get(
+            collection
+        )
 
-        for record in records:
-            col.data.insert(
-                uuid=record.id,
-                properties=record.metadata,
-                vector=record.vector,
-            )
+        with col.batch.fixed_size(
+            batch_size=50
+        ) as batch:
+
+            for record in records:
+
+                batch.add_object(
+                    uuid=record.id,
+                    properties=record.metadata,
+                    vector=record.vector,
+                )
+
+            if batch.number_errors > 0:
+                raise RuntimeError(
+                    f"Weaviate batch failed: "
+                    f"{batch.failed_objects}"
+                )
 
     def get(
         self,
@@ -109,13 +125,23 @@ class WeaviateDriver(VectorDatabase):
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
 
-        col = self.client.collections.get(collection)
+        validate_filter(filters)
+
+        col = self.client.collections.get(
+            collection
+        )
+
+        weaviate_filter = (
+            self._build_filter(filters)
+        )
 
         response = col.query.near_vector(
             near_vector=vector,
             limit=top_k,
+            filters=weaviate_filter,
         )
 
         return [
@@ -134,8 +160,111 @@ class WeaviateDriver(VectorDatabase):
         return Capabilities(
             dense_vector=True,
             metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
             sparse_vector=True,
             hybrid_search=True,
             namespaces=False,
-            named_vectors=True,
+            named_vectors=False,
         )
+    
+    def _build_filter(
+        self,
+        filters: dict | None,
+    ):
+
+        if not filters:
+            return None
+
+        # AND
+        if "$and" in filters:
+
+            items = [
+                self._build_filter(item)
+                for item in filters["$and"]
+            ]
+
+            return Filter.all_of(items)
+
+        # OR
+        if "$or" in filters:
+
+            items = [
+                self._build_filter(item)
+                for item in filters["$or"]
+            ]
+
+            return Filter.any_of(items)
+
+        # 通常のフィールド条件
+        expressions = []
+
+        for key, condition in filters.items():
+
+            prop = Filter.by_property(key)
+
+            for operator, value in condition.items():
+
+                if operator == "$eq":
+
+                    expressions.append(
+                        prop.equal(value)
+                    )
+
+                elif operator == "$ne":
+
+                    expressions.append(
+                        Filter.not_(
+                            prop.equal(value)
+                        )
+                    )
+
+                elif operator == "$gt":
+
+                    expressions.append(
+                        prop.greater_than(value)
+                    )
+
+                elif operator == "$gte":
+
+                    expressions.append(
+                        prop.greater_or_equal(value)
+                    )
+
+                elif operator == "$lt":
+
+                    expressions.append(
+                        prop.less_than(value)
+                    )
+
+                elif operator == "$lte":
+
+                    expressions.append(
+                        prop.less_or_equal(value)
+                    )
+
+                elif operator == "$in":
+
+                    expressions.append(
+                        prop.contains_any(value)
+                    )
+
+                else:
+
+                    raise ValueError(
+                        f"Unsupported VecPort filter operator: {operator}"
+                    )
+
+        if len(expressions) == 1:
+            return expressions[0]
+
+        return Filter.all_of(expressions)

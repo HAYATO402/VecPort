@@ -10,6 +10,8 @@ from vecport.core.models import (
     VectorRecord,
 )
 
+from vecport.core.filters import validate_filter
+
 
 class MilvusDriver(VectorDatabase):
 
@@ -144,12 +146,20 @@ class MilvusDriver(VectorDatabase):
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
+
+        validate_filter(filters)
+
+        filter_expression = self._build_filter(
+            filters
+        )
 
         response = self.client.search(
             collection_name=collection,
             data=[vector],
             limit=top_k,
+            filter=filter_expression,
             output_fields=["*"],
         )
 
@@ -165,7 +175,10 @@ class MilvusDriver(VectorDatabase):
             metadata = {
                 key: value
                 for key, value in entity.items()
-                if key not in ("id", "vector")
+                if key not in (
+                    "id",
+                    "vector",
+                )
             }
 
             results.append(
@@ -187,8 +200,116 @@ class MilvusDriver(VectorDatabase):
         return Capabilities(
             dense_vector=True,
             metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
             sparse_vector=True,
             hybrid_search=True,
             namespaces=False,
             named_vectors=False,
+        )
+
+    def _quote_filter_value(
+        self,
+        value,
+    ):
+
+        if isinstance(value, str):
+
+            value = value.replace(
+                '"',
+                '\\"',
+            )
+
+            return f'"{value}"'
+
+        if isinstance(value, bool):
+            return "true" if value else "false"
+
+        return str(value)
+
+    def _build_filter(
+        self,
+        filters: dict | None,
+    ) -> str | None:
+
+        if not filters:
+            return None
+
+        expressions = []
+
+        for key, condition in filters.items():
+
+            if key == "$and":
+
+                parts = [
+                    self._build_filter(item)
+                    for item in condition
+                ]
+
+                return (
+                    "("
+                    + " and ".join(parts)
+                    + ")"
+                )
+
+            if key == "$or":
+
+                parts = [
+                    self._build_filter(item)
+                    for item in condition
+                ]
+
+                return (
+                    "("
+                    + " or ".join(parts)
+                    + ")"
+                )
+
+            for operator, value in condition.items():
+
+                mapping = {
+                    "$eq": "==",
+                    "$ne": "!=",
+                    "$gt": ">",
+                    "$gte": ">=",
+                    "$lt": "<",
+                    "$lte": "<=",
+                }
+
+                if operator in mapping:
+
+                    expressions.append(
+                        f"{key} "
+                        f"{mapping[operator]} "
+                        f"{self._quote_filter_value(value)}"
+                    )
+
+                elif operator == "$in":
+
+                    values = ", ".join(
+                        self._quote_filter_value(item)
+                        for item in value
+                    )
+
+                    expressions.append(
+                        f"{key} in [{values}]"
+                    )
+
+                else:
+
+                    raise ValueError(
+                        f"Unsupported VecPort filter operator: {operator}"
+                    )
+
+        return " and ".join(
+            expressions
         )

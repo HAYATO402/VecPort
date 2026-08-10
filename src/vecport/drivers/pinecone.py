@@ -9,6 +9,8 @@ from vecport.core.models import (
     VectorRecord,
 )
 
+from vecport.core.filters import validate_filter
+
 
 class PineconeDriver(VectorDatabase):
 
@@ -159,7 +161,10 @@ class PineconeDriver(VectorDatabase):
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
+
+        validate_filter(filters)
 
         index_name = self._normalize_index_name(
             collection
@@ -169,10 +174,17 @@ class PineconeDriver(VectorDatabase):
             index_name
         )
 
+        query_args = {
+            "vector": vector,
+            "top_k": top_k,
+            "include_metadata": True,
+        }
+
+        if filters:
+            query_args["filter"] = filters
+
         response = index.query(
-            vector=vector,
-            top_k=top_k,
-            include_metadata=True,
+            **query_args
         )
 
         return [
@@ -191,8 +203,19 @@ class PineconeDriver(VectorDatabase):
         return Capabilities(
             dense_vector=True,
             metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
             sparse_vector=True,
             hybrid_search=True,
-            namespaces=True,
+            namespaces=False,
             named_vectors=False,
         )

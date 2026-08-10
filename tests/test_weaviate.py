@@ -4,6 +4,8 @@ import pytest
 
 from vecport import VectorRecord, connect
 
+from tests.helpers import wait_for_search
+
 
 @pytest.mark.skipif(
     "WEAVIATE_URL" not in os.environ
@@ -58,10 +60,12 @@ def test_weaviate_upsert_and_search():
         assert records[0].id == test_id
 
         # その後search
-        results = db.search(
+        results = wait_for_search(
+            db,
             name,
             [1.0, 0.0, 0.0],
             top_k=1,
+            expected_count=1,
         )
 
         print("SEARCH results:", results)
@@ -70,7 +74,5 @@ def test_weaviate_upsert_and_search():
         assert results[0].id == test_id
 
     finally:
-        try:
-            db.delete_collection(name)
-        finally:
-            db.client.close()
+        db.delete_collection(name)
+        db.client.close()

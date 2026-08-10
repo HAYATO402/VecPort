@@ -1,14 +1,14 @@
 class VecPortError(Exception):
-    pass
+    """Base exception for VecPort."""
 
 
-class ConnectionError(VecPortError):
-    pass
-
-
-class CollectionNotFoundError(VecPortError):
-    pass
+class InvalidFilterError(VecPortError):
+    """Raised when a VecPort filter is invalid."""
 
 
 class UnsupportedFeatureError(VecPortError):
-    pass
+    """Raised when a driver does not support a feature."""
+
+
+class DriverNotFoundError(VecPortError):
+    """Raised when an unknown driver is requested."""

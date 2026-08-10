@@ -4,6 +4,11 @@ from qdrant_client.models import (
     PointIdsList,
     PointStruct,
     VectorParams,
+    Filter,
+    MatchAny,
+    MatchValue,
+    Range,
+    FieldCondition,
 )
 
 from vecport.core.interface import VectorDatabase
@@ -12,6 +17,8 @@ from vecport.core.models import (
     SearchResult,
     VectorRecord,
 )
+
+from vecport.core.filters import validate_filter
 
 
 class QdrantDriver(VectorDatabase):
@@ -106,17 +113,150 @@ class QdrantDriver(VectorDatabase):
                 points=ids,
             ),
         )
+    
+    def _build_filter(
+        self,
+        filters: dict | None,
+    ):
+
+        if not filters:
+            return None
+
+        must = []
+        must_not = []
+
+        for key, condition in filters.items():
+
+            if key == "$and":
+
+                nested_filters = [
+                    self._build_filter(item)
+                    for item in condition
+                ]
+
+                return Filter(
+                    must=nested_filters
+                )
+
+            if key == "$or":
+
+                nested_filters = [
+                    self._build_filter(item)
+                    for item in condition
+                ]
+
+                return Filter(
+                    should=nested_filters
+                )
+
+            for operator, value in condition.items():
+
+                if operator == "$eq":
+
+                    must.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchValue(
+                                value=value
+                            ),
+                        )
+                    )
+
+                elif operator == "$ne":
+
+                    must_not.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchValue(
+                                value=value
+                            ),
+                        )
+                    )
+
+                elif operator == "$gt":
+
+                    must.append(
+                        FieldCondition(
+                            key=key,
+                            range=Range(
+                                gt=value
+                            ),
+                        )
+                    )
+
+                elif operator == "$gte":
+
+                    must.append(
+                        FieldCondition(
+                            key=key,
+                            range=Range(
+                                gte=value
+                            ),
+                        )
+                    )
+
+                elif operator == "$lt":
+
+                    must.append(
+                        FieldCondition(
+                            key=key,
+                            range=Range(
+                                lt=value
+                            ),
+                        )
+                    )
+
+                elif operator == "$lte":
+
+                    must.append(
+                        FieldCondition(
+                            key=key,
+                            range=Range(
+                                lte=value
+                            ),
+                        )
+                    )
+
+                elif operator == "$in":
+
+                    must.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchAny(
+                                any=value
+                            ),
+                        )
+                    )
+
+                else:
+
+                    raise ValueError(
+                        f"Unsupported VecPort filter operator: {operator}"
+                    )
+
+        return Filter(
+        must=must or None,
+        must_not=must_not or None,
+        )
 
     def search(
         self,
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
+
+        validate_filter(filters)
+
+        query_filter = self._build_filter(
+            filters
+        )
 
         response = self.client.query_points(
             collection_name=collection,
             query=vector,
+            query_filter=query_filter,
             limit=top_k,
             with_payload=True,
         )
@@ -137,8 +277,19 @@ class QdrantDriver(VectorDatabase):
         return Capabilities(
             dense_vector=True,
             metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
             sparse_vector=True,
             hybrid_search=True,
             namespaces=False,
-            named_vectors=True,
+            named_vectors=False,
         )
