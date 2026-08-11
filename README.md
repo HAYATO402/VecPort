@@ -272,6 +272,68 @@ print(capabilities.filter_operators)
 
 This makes it possible to build applications that adapt to the capabilities of the selected backend.
 
+## Benchmarking
+
+VecPort includes a common benchmarking interface for measuring vector search performance across supported databases.
+
+```bash
+vecport benchmark \
+  --url "vecport://qdrant?path=.vecport-qdrant" \
+  --collection documents \
+  --vector "1,0,0" \
+  --top-k 3 \
+  --iterations 20 \
+  --warmup 3
+```
+
+The benchmark reports:
+
+- average search latency
+- p50 latency
+- p95 latency
+- p99 latency
+- successful requests
+- failed requests
+- success rate
+
+Example:
+
+```text
+Benchmark complete
+Database: qdrant
+Requests: 20
+Successes: 20
+Failures: 0
+Success rate: 100.00%
+
+Average: 0.821 ms
+p50: 0.751 ms
+p95: 1.203 ms
+p99: 1.410 ms
+```
+
+### Comparing Backends
+
+Run the same benchmark configuration against different vector databases.
+
+```bash
+vecport benchmark \
+  --url "vecport://qdrant?path=.vecport-qdrant" \
+  --collection documents \
+  --vector "1,0,0" \
+  --iterations 100
+```
+
+```bash
+vecport benchmark \
+  --url "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --vector "1,0,0" \
+  --iterations 100
+```
+
+For meaningful comparisons, use equivalent datasets, vector dimensions, query vectors, `top_k` values, hardware, and network conditions across all tested backends.
+
 ## Extensible Driver Registry
 
 VecPort uses a driver registry that allows additional vector database drivers to be registered without modifying the core connection API.
