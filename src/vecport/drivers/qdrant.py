@@ -20,21 +20,39 @@ from vecport.core.models import (
 
 from vecport.core.filters import validate_filter
 
+from vecport.core.errors import (
+    UnsupportedFeatureError,
+)
+
 
 class QdrantDriver(VectorDatabase):
 
     def __init__(
         self,
         url: str | None = None,
-        api_key: str | None = None,
+        path: str | None = None,
+        **kwargs,
     ):
-        if url:
+
+        if url is not None:
+
             self.client = QdrantClient(
                 url=url,
-                api_key=api_key,
+                **kwargs,
             )
+
+        elif path is not None:
+
+            self.client = QdrantClient(
+                path=path,
+                **kwargs,
+            )
+
         else:
-            self.client = QdrantClient(":memory:")
+
+            self.client = QdrantClient(
+                ":memory:"
+            )
 
     def create_collection(
         self,
@@ -293,3 +311,45 @@ class QdrantDriver(VectorDatabase):
             namespaces=False,
             named_vectors=False,
         )
+
+    def scan(
+        self,
+        collection: str,
+        *,
+        batch_size: int = 100,
+    ):
+        if batch_size <= 0:
+            raise ValueError(
+                "batch_size must be greater than 0"
+            )
+
+        offset = None
+
+        while True:
+
+            points, offset = self.client.scroll(
+                collection_name=collection,
+                limit=batch_size,
+                offset=offset,
+                with_payload=True,
+                with_vectors=True,
+            )
+
+            for point in points:
+
+                vector = point.vector
+
+                if not isinstance(vector, list):
+                    raise UnsupportedFeatureError(
+                        "VecPort migration currently supports "
+                        "single dense vectors only"
+                    )
+
+                yield VectorRecord(
+                    id=str(point.id),
+                    vector=list(vector),
+                    metadata=point.payload or {},
+                )
+
+            if offset is None:
+                break

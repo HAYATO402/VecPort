@@ -1,6 +1,7 @@
 import json
 
 import psycopg
+import uuid
 from pgvector.psycopg import register_vector
 
 from vecport.core.interface import VectorDatabase
@@ -11,6 +12,8 @@ from vecport.core.models import (
 )
 
 from vecport.core.filters import validate_filter
+
+from psycopg import sql
 
 
 class PgVectorDriver(VectorDatabase):
@@ -357,3 +360,74 @@ class PgVectorDriver(VectorDatabase):
             " AND ".join(clauses),
             params,
         )
+
+    def scan(
+        self,
+        collection: str,
+        *,
+        batch_size: int = 100,
+    ):
+        if batch_size <= 0:
+            raise ValueError(
+                "batch_size must be greater than 0"
+            )
+
+        cursor_name = (
+            "vecport_scan_"
+            + uuid.uuid4().hex
+        )
+
+        with self.conn.transaction():
+
+            with self.conn.cursor(
+                name=cursor_name
+            ) as cursor:
+
+                cursor.execute(
+                    sql.SQL(
+                        """
+                        SELECT
+                            id,
+                            vector,
+                            metadata
+                        FROM {}
+                        ORDER BY id
+                        """
+                    ).format(
+                        sql.Identifier(
+                            collection
+                        )
+                    )
+                )
+
+                while True:
+
+                    rows = cursor.fetchmany(
+                        batch_size
+                    )
+
+                    if not rows:
+                        break
+
+                    for row in rows:
+
+                        raw_vector = row[1]
+
+                        if hasattr(
+                            raw_vector,
+                            "to_list",
+                        ):
+                            vector = (
+                                raw_vector.to_list()
+                            )
+
+                        else:
+                            vector = list(
+                                raw_vector
+                            )
+
+                        yield VectorRecord(
+                            id=str(row[0]),
+                            vector=vector,
+                            metadata=row[2] or {},
+                        )

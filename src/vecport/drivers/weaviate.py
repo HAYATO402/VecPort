@@ -268,3 +268,58 @@ class WeaviateDriver(VectorDatabase):
             return expressions[0]
 
         return Filter.all_of(expressions)
+
+    def scan(
+        self,
+        collection: str,
+        *,
+        batch_size: int = 100,
+    ):
+        if batch_size <= 0:
+            raise ValueError(
+                "batch_size must be greater than 0"
+            )
+
+        col = self.client.collections.use(
+            collection
+        )
+
+        for item in col.iterator(
+            include_vector=True
+        ):
+
+            raw_vector = item.vector
+
+            if isinstance(
+                raw_vector,
+                dict,
+            ):
+
+                if "default" in raw_vector:
+                    vector = raw_vector[
+                        "default"
+                    ]
+
+                elif len(raw_vector) == 1:
+                    vector = next(
+                        iter(
+                            raw_vector.values()
+                        )
+                    )
+
+                else:
+                    raise UnsupportedFeatureError(
+                        "VecPort migration currently supports "
+                        "single dense vectors only"
+                    )
+
+            else:
+                vector = raw_vector
+
+            yield VectorRecord(
+                id=str(item.uuid),
+                vector=list(vector),
+                metadata=dict(
+                    item.properties or {}
+                ),
+            )

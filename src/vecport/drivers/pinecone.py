@@ -219,3 +219,74 @@ class PineconeDriver(VectorDatabase):
             namespaces=False,
             named_vectors=False,
         )
+
+    def scan(
+        self,
+        collection: str,
+        *,
+        batch_size: int = 100,
+    ):
+        if batch_size <= 0:
+            raise ValueError(
+                "batch_size must be greater than 0"
+            )
+
+        fetch_size = min(
+            batch_size,
+            1000,
+        )
+
+        index_name = (
+            self._normalize_index_name(
+                collection
+            )
+        )
+
+        index = self.client.Index(
+            index_name
+        )
+
+        for items in index.list(
+            limit=fetch_size
+        ):
+
+            record_ids = []
+
+            for item in items:
+
+                if isinstance(item, str):
+                    record_ids.append(item)
+
+                else:
+                    record_ids.append(
+                        item.id
+                    )
+
+            if not record_ids:
+                continue
+
+            response = index.fetch(
+                ids=record_ids
+            )
+
+            vectors = response.vectors
+
+            for record_id in record_ids:
+
+                record = vectors.get(
+                    record_id
+                )
+
+                if record is None:
+                    continue
+
+                yield VectorRecord(
+                    id=str(record.id),
+                    vector=list(
+                        record.values
+                    ),
+                    metadata=dict(
+                        record.metadata
+                        or {}
+                    ),
+                )
