@@ -18,6 +18,13 @@ class BenchmarkReport:
 
     success_rate: float
 
+@dataclass(frozen=True)
+class BenchmarkComparison:
+    reports: tuple[
+        BenchmarkReport,
+        ...
+    ]
+
 
 def _percentile(
     values: list[float],
@@ -142,4 +149,78 @@ def benchmark_search(
             / iterations
             * 100
         ),
+    )
+
+def test_compare_benchmarks():
+
+    first = FakeBenchmarkDriver()
+    second = FakeBenchmarkDriver()
+
+    comparison = compare_benchmarks(
+        [
+            (
+                "first",
+                first,
+            ),
+            (
+                "second",
+                second,
+            ),
+        ],
+        collection="documents",
+        vector=[
+            1.0,
+            0.0,
+            0.0,
+        ],
+        iterations=3,
+        warmup=0,
+    )
+
+    assert len(
+        comparison.reports
+    ) == 2
+
+    assert (
+        comparison.reports[0].label
+        == "first"
+    )
+
+    assert (
+        comparison.reports[1].label
+        == "second"
+    )
+
+def compare_benchmarks(
+    backends,
+    *,
+    collection: str,
+    vector: list[float],
+    top_k: int = 10,
+    iterations: int = 100,
+    warmup: int = 5,
+) -> BenchmarkComparison:
+
+    reports = []
+
+    for label, db in backends:
+
+        report = benchmark_search(
+            db,
+            label=label,
+            collection=collection,
+            vector=vector,
+            top_k=top_k,
+            iterations=iterations,
+            warmup=warmup,
+        )
+
+        reports.append(
+            report
+        )
+
+    return BenchmarkComparison(
+        reports=tuple(
+            reports
+        )
     )
