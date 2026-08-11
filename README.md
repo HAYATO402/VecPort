@@ -37,7 +37,9 @@ Application
 
 The goal of VecPort is simple:
 
->## Use Cases
+> Build against one interface while keeping the freedom to choose your vector database.
+
+## Use Cases
 
 VecPort is designed for teams that want to:
 
@@ -46,7 +48,7 @@ VecPort is designed for teams that want to:
 - Reduce the cost of switching vector database providers
 - Standardize vector database access across multiple projects
 - Build reusable AI and retrieval infrastructure
-- Prepare applications for future database migration and routing Build against one interface while keeping the freedom to choose your vector database.
+- Prepare applications for future database migration and routing
 
 ## Supported Drivers
 
@@ -274,21 +276,23 @@ This makes it possible to build applications that adapt to the capabilities of t
 
 ## Benchmarking
 
-VecPort includes a common benchmarking interface for measuring vector search performance across supported databases.
+VecPort provides a common benchmarking interface for measuring and comparing vector search performance across supported databases.
+
+### Single-Backend Benchmark
 
 ```bash
 vecport benchmark \
-  --url "vecport://qdrant?path=.vecport-qdrant" \
-  --collection documents \
-  --vector "1,0,0" \
-  --top-k 3 \
-  --iterations 20 \
-  --warmup 3
+  --url "vecport://qdrant?url=http://localhost:6333" \
+  --collection vecport_benchmark_10k_128 \
+  --dimension 128 \
+  --top-k 10 \
+  --iterations 100 \
+  --warmup 10
 ```
 
-The benchmark reports:
+VecPort reports:
 
-- average search latency
+- average latency
 - p50 latency
 - p95 latency
 - p99 latency
@@ -296,43 +300,86 @@ The benchmark reports:
 - failed requests
 - success rate
 
-Example:
+### Cross-Database Benchmark Comparison
 
-```text
-Benchmark complete
-Database: qdrant
-Requests: 20
-Successes: 20
-Failures: 0
-Success rate: 100.00%
-
-Average: 0.821 ms
-p50: 0.751 ms
-p95: 1.203 ms
-p99: 1.410 ms
-```
-
-### Comparing Backends
-
-Run the same benchmark configuration against different vector databases.
+The same workload can be executed against multiple vector databases.
 
 ```bash
-vecport benchmark \
-  --url "vecport://qdrant?path=.vecport-qdrant" \
-  --collection documents \
-  --vector "1,0,0" \
-  --iterations 100
+vecport benchmark compare \
+  --target "qdrant=vecport://qdrant?url=http://localhost:6333" \
+  --target "milvus=vecport://milvus?uri=http://localhost:19530" \
+  --collection vecport_benchmark_100k_128 \
+  --dimension 128 \
+  --top-k 10 \
+  --iterations 100 \
+  --warmup 10
 ```
+
+VecPort uses the same query vector and benchmark parameters for every target.
+
+### Example Local Benchmark Results
+
+The following results were measured in a local development environment using VecPort's reproducible benchmark dataset generator.
+
+Common settings:
+
+- `top_k = 10`
+- `iterations = 100`
+- `warmup = 10`
+- dataset seed = `42`
+- identical generated records across backends
+- Qdrant and Milvus running locally
+
+| Records | Dimension | Backend | Avg | p50 | p95 | p99 | Success |
+|---:|---:|---|---:|---:|---:|---:|---:|
+| 10,000 | 128 | Qdrant | 16.091 ms | 15.577 ms | 25.408 ms | 30.395 ms | 100% |
+| 10,000 | 128 | Milvus | 6.874 ms | 6.764 ms | 7.660 ms | 8.746 ms | 100% |
+| 10,000 | 384 | Qdrant | 22.846 ms | 24.377 ms | 31.547 ms | 31.974 ms | 100% |
+| 10,000 | 384 | Milvus | 10.669 ms | 10.298 ms | 12.355 ms | 13.015 ms | 100% |
+| 30,000 | 128 | Qdrant | 17.998 ms | 15.557 ms | 30.561 ms | 31.080 ms | 100% |
+| 30,000 | 128 | Milvus | 7.402 ms | 7.311 ms | 8.017 ms | 8.545 ms | 100% |
+| 50,000 | 128 | Qdrant | 23.843 ms | 29.954 ms | 31.385 ms | 31.509 ms | 100% |
+| 50,000 | 128 | Milvus | 9.793 ms | 9.685 ms | 10.575 ms | 10.986 ms | 100% |
+| 100,000 | 128 | Qdrant | 23.921 ms | 30.077 ms | 31.537 ms | 31.904 ms | 100% |
+| 100,000 | 128 | Milvus | 14.622 ms | 14.368 ms | 16.163 ms | 16.485 ms | 100% |
+
+These numbers are example measurements from one local development environment and should not be interpreted as universal performance rankings between database products.
+
+Performance depends on hardware, deployment topology, index configuration, database configuration, dataset characteristics, network conditions, and workload.
+
+### Reproducible Benchmark Datasets
+
+VecPort can generate deterministic benchmark datasets using a fixed random seed.
+
+Using the same:
+
+- record count
+- vector dimension
+- dataset seed
+- query seed
+- `top_k`
+- iteration count
+- warmup count
+
+allows the same workload to be reproduced across multiple backends.
+
+### JSON Benchmark Reports
+
+Benchmark comparison results can also be written to JSON.
 
 ```bash
-vecport benchmark \
-  --url "vecport://milvus?uri=http://localhost:19530" \
-  --collection documents \
-  --vector "1,0,0" \
-  --iterations 100
+vecport benchmark compare \
+  --target "qdrant=vecport://qdrant?url=http://localhost:6333" \
+  --target "milvus=vecport://milvus?uri=http://localhost:19530" \
+  --collection vecport_benchmark_100k_128 \
+  --dimension 128 \
+  --top-k 10 \
+  --iterations 100 \
+  --warmup 10 \
+  --output benchmark_100k_128.json
 ```
 
-For meaningful comparisons, use equivalent datasets, vector dimensions, query vectors, `top_k` values, hardware, and network conditions across all tested backends.
+This makes benchmark results easier to archive, compare, visualize, and process in CI or external tooling.
 
 ## Extensible Driver Registry
 
@@ -479,22 +526,22 @@ The goal is not only to provide multiple drivers, but to verify that they follow
 ## Architecture
 
 ```text
-                        Application
-                            │
-                            ▼
-                     VecPort Interface
-                            │
-             ┌──────────────┼──────────────┐
-             │              │              │
-             ▼              ▼              ▼
-      Filter Validation  Capabilities   Common Errors
-             │
-             ▼
-                       Driver Layer
-             │
-     ┌───────┼────────┬────────┬─────────┐
-     ▼       ▼        ▼        ▼         ▼
-  Qdrant  Pinecone  Weaviate  Milvus  pgvector
+                          Application
+                              │
+                              ▼
+                       VecPort Interface
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+              ▼               ▼               ▼
+      Filter Validation   Capabilities   Common Errors
+              │
+              ▼
+                         Driver Layer
+              │
+      ┌───────┼────────┬────────┬─────────┐
+      ▼       ▼        ▼        ▼         ▼
+   Qdrant  Pinecone  Weaviate  Milvus  pgvector
 ```
 
 VecPort separates application-level vector database logic from backend-specific implementations.

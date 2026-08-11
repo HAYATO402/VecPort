@@ -353,3 +353,9 @@ class QdrantDriver(VectorDatabase):
 
             if offset is None:
                 break
+
+    def close(
+        self,
+    ) -> None:
+
+        self.client.close()

@@ -2,6 +2,7 @@ import pytest
 
 from vecport.core.benchmark import (
     benchmark_search,
+    compare_benchmarks,
 )
 
 

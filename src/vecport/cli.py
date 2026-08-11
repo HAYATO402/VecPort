@@ -1,5 +1,6 @@
 import argparse
 import os
+import json
 
 from vecport import connect_url
 
@@ -14,6 +15,11 @@ from vecport.core.migration import (
 
 from vecport.core.benchmark import (
     benchmark_search,
+    compare_benchmarks,
+)
+
+from vecport.core.benchmark_dataset import (
+    make_benchmark_query,
 )
 
 
@@ -46,8 +52,9 @@ def _connection_overrides(
 
     return overrides
 
-
-def _close_driver(db):
+def _close_driver(
+    db,
+) -> None:
 
     close = getattr(
         db,
@@ -73,6 +80,7 @@ def _close_driver(db):
 
     if callable(close):
         close()
+
 
 def _parse_vector(
     value: str,
@@ -105,6 +113,30 @@ def _parse_vector(
         raise argparse.ArgumentTypeError(
             "Vector values must be numbers"
         ) from exc
+
+def _parse_benchmark_target(
+    value: str,
+) -> tuple[str, str]:
+
+    if "=" not in value:
+        raise ValueError(
+            "Benchmark target must use LABEL=URL format"
+        )
+
+    label, url = value.split(
+        "=",
+        1,
+    )
+
+    label = label.strip()
+    url = url.strip()
+
+    if not label or not url:
+        raise ValueError(
+            "Benchmark target must use LABEL=URL format"
+        )
+
+    return label, url
 
 
 def main():
@@ -175,7 +207,6 @@ def main():
 
     benchmark.add_argument(
         "--url",
-        required=True,
         help="VecPort connection URL",
     )
 
@@ -187,7 +218,6 @@ def main():
 
     benchmark.add_argument(
         "--vector",
-        required=True,
         type=_parse_vector,
         help=(
             "Query vector as comma-separated "
@@ -215,6 +245,39 @@ def main():
 
     benchmark.add_argument(
         "--label",
+    )
+
+    benchmark.add_argument(
+        "benchmark_action",
+        nargs="?",
+        choices=[
+            "compare",
+        ],
+    )
+
+    benchmark.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        help=(
+            "Benchmark target in LABEL=URL format. "
+            "Repeat for multiple databases."
+        ),
+    )
+
+    benchmark.add_argument(
+        "--dimension",
+        type=int,
+        )
+
+    benchmark.add_argument(
+        "--query-seed",
+        type=int,
+        default=999,
+    )
+
+    benchmark.add_argument(
+        "--output",
     )
 
     args = parser.parse_args()
@@ -385,97 +448,265 @@ def main():
                 "--warmup cannot be negative"
             )
 
-        db = connect_url(
-            args.url,
-            **_connection_overrides(
-                "BENCHMARK"
-            ),
-        )
+        if args.vector:
 
-        try:
+            query_vector = args.vector
 
-            label = args.label
+        elif args.dimension:
 
-            if not label:
-                label = (
-                    args.url
-                    .split(
-                        "://",
-                        1,
-                    )[-1]
-                    .split(
-                        "?",
-                        1,
-                    )[0]
+            if args.dimension <= 0:
+                parser.error(
+                    "--dimension must be greater than 0"
                 )
 
-            report = benchmark_search(
-                db,
-                label=label,
-                collection=args.collection,
-                vector=args.vector,
-                top_k=args.top_k,
-                iterations=args.iterations,
-                warmup=args.warmup,
+            query_vector = make_benchmark_query(
+                dimension=args.dimension,
+                seed=args.query_seed,
             )
 
-            print()
-            print(
-                "Benchmark complete"
+        else:
+
+            parser.error(
+                "Provide either --vector or --dimension"
             )
 
-            print(
-                f"Database: "
-                f"{report.label}"
+        # -------------------------
+        # Compare mode
+        # -------------------------
+
+        if args.benchmark_action == "compare":
+
+            if len(args.target) < 2:
+                parser.error(
+                    "benchmark compare requires "
+                    "at least two --target values"
+                )
+
+            connections = []
+
+            try:
+
+                for raw_target in args.target:
+
+                    try:
+
+                        label, url = (
+                            _parse_benchmark_target(
+                                raw_target
+                            )
+                        )
+
+                    except ValueError as exc:
+
+                        parser.error(
+                            str(exc)
+                        )
+
+                    db = connect_url(
+                        url
+                    )
+
+                    connections.append(
+                        (
+                            label,
+                            db,
+                        )
+                    )
+
+
+                comparison = compare_benchmarks(
+                    connections,
+                    collection=args.collection,
+                    vector=query_vector,
+                    top_k=args.top_k,
+                    iterations=args.iterations,
+                    warmup=args.warmup,
+                )
+
+
+                print()
+
+                print(
+                    f"{'Backend':<18}"
+                    f"{'Avg':>12}"
+                    f"{'p50':>12}"
+                    f"{'p95':>12}"
+                    f"{'p99':>12}"
+                    f"{'Success':>12}"
+                )
+
+                print(
+                    "-" * 78
+                )
+
+
+                for report in comparison.reports:
+
+                    print(
+                        f"{report.label:<18}"
+                        f"{report.average_ms:>10.3f}ms"
+                        f"{report.p50_ms:>10.3f}ms"
+                        f"{report.p95_ms:>10.3f}ms"
+                        f"{report.p99_ms:>10.3f}ms"
+                        f"{report.success_rate:>11.2f}%"
+                    )
+
+                if args.output:
+
+                    payload = {
+                        "collection": args.collection,
+                        "top_k": args.top_k,
+                        "iterations": args.iterations,
+                        "warmup": args.warmup,
+                        "results": [
+                            {
+                                "label": report.label,
+                                "requests": report.requests,
+                                "successes": report.successes,
+                                "failures": report.failures,
+                                "success_rate": report.success_rate,
+                                "average_ms": report.average_ms,
+                                "p50_ms": report.p50_ms,
+                                "p95_ms": report.p95_ms,
+                                "p99_ms": report.p99_ms,
+                            }
+                            for report in comparison.reports
+                        ],
+                    }
+
+                    with open(
+                        args.output,
+                        "w",
+                        encoding="utf-8",
+                    ) as file:
+
+                        json.dump(
+                            payload,
+                            file,
+                            indent=2,
+                        )
+
+                    print()
+                    print(
+                        f"Report written to: {args.output}"
+                    )
+
+
+            finally:
+
+                for _, db in connections:
+
+                    _close_driver(
+                        db
+                    )
+
+
+        # -------------------------
+        # Single benchmark mode
+        # -------------------------
+
+        else:
+
+            if not args.url:
+                parser.error(
+                    "--url is required unless "
+                    "using benchmark compare"
+                )
+
+            db = connect_url(
+                args.url,
+                **_connection_overrides(
+                    "BENCHMARK"
+                ),
             )
 
-            print(
-                f"Requests: "
-                f"{report.requests}"
-            )
+            try:
 
-            print(
-                f"Successes: "
-                f"{report.successes}"
-            )
+                label = args.label
 
-            print(
-                f"Failures: "
-                f"{report.failures}"
-            )
+                if not label:
+                    label = (
+                        args.url
+                        .split(
+                            "://",
+                            1,
+                        )[-1]
+                        .split(
+                            "?",
+                            1,
+                        )[0]
+                    )
 
-            print(
-                f"Success rate: "
-                f"{report.success_rate:.2f}%"
-            )
 
-            print()
+                report = benchmark_search(
+                    db,
+                    label=label,
+                    collection=args.collection,
+                    vector=query_vector,
+                    top_k=args.top_k,
+                    iterations=args.iterations,
+                    warmup=args.warmup,
+                )
 
-            print(
-                f"Average: "
-                f"{report.average_ms:.3f} ms"
-            )
 
-            print(
-                f"p50: "
-                f"{report.p50_ms:.3f} ms"
-            )
+                print()
+                print(
+                    "Benchmark complete"
+                )
 
-            print(
-                f"p95: "
-                f"{report.p95_ms:.3f} ms"
-            )
+                print(
+                    f"Database: "
+                    f"{report.label}"
+                )
 
-            print(
-                f"p99: "
-                f"{report.p99_ms:.3f} ms"
-            )
+                print(
+                    f"Requests: "
+                    f"{report.requests}"
+                )
 
-        finally:
+                print(
+                    f"Successes: "
+                    f"{report.successes}"
+                )
 
-            _close_driver(
-                db
-            )
+                print(
+                    f"Failures: "
+                    f"{report.failures}"
+                )
+
+                print(
+                    f"Success rate: "
+                    f"{report.success_rate:.2f}%"
+                )
+
+                print()
+
+                print(
+                    f"Average: "
+                    f"{report.average_ms:.3f} ms"
+                )
+
+                print(
+                    f"p50: "
+                    f"{report.p50_ms:.3f} ms"
+                )
+
+                print(
+                    f"p95: "
+                    f"{report.p95_ms:.3f} ms"
+                )
+
+                print(
+                    f"p99: "
+                    f"{report.p99_ms:.3f} ms"
+                )
+
+
+            finally:
+
+                _close_driver(
+                    db
+                )
 
 if __name__ == "__main__":
     main()
