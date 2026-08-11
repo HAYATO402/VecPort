@@ -29,3 +29,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+vecport = "vecport.cli:main"

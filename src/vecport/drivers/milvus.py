@@ -313,3 +313,52 @@ class MilvusDriver(VectorDatabase):
         return " and ".join(
             expressions
         )
+
+    def scan(
+        self,
+        collection: str,
+        *,
+        batch_size: int = 100,
+    ):
+        if batch_size <= 0:
+            raise ValueError(
+                "batch_size must be greater than 0"
+            )
+
+        iterator = self.client.query_iterator(
+            collection_name=collection,
+            batch_size=batch_size,
+            filter="",
+            output_fields=["*"],
+        )
+
+        try:
+
+            while True:
+
+                rows = iterator.next()
+
+                if not rows:
+                    break
+
+                for row in rows:
+
+                    metadata = {
+                        key: value
+                        for key, value in row.items()
+                        if key not in {
+                            "id",
+                            "vector",
+                        }
+                    }
+
+                    yield VectorRecord(
+                        id=str(row["id"]),
+                        vector=list(
+                            row["vector"]
+                        ),
+                        metadata=metadata,
+                    )
+
+        finally:
+            iterator.close()

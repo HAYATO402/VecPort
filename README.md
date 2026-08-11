@@ -306,6 +306,66 @@ db = connect("my-vector-db")
 
 The driver registry provides a foundation for a future VecPort driver ecosystem and third-party driver compliance tooling.
 
+## Cross-Database Migration
+
+VecPort can migrate vector records between supported vector databases using the same common interface.
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?path=.vecport-qdrant" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --recreate-target \
+  --verify
+```
+
+VecPort migrates records in batches using the common `scan()` and `upsert()` APIs.
+
+### Migration Verification
+
+Use `--verify` to automatically validate the migrated collection after the migration completes.
+
+VecPort verifies:
+
+- record counts
+- record IDs
+- vector dimensions
+- vector values
+- metadata
+
+Example output:
+
+```text
+Migration complete
+Scanned: 10000
+Migrated: 10000
+
+Verification report
+Source count: 10000
+Target count: 10000
+Matched IDs: 10000
+Missing IDs: 0
+Dimensions: OK
+Vectors: OK
+Metadata: OK
+
+Migration verification: PASSED
+```
+
+### Dry Run
+
+Inspect a migration without writing to the destination:
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?path=.vecport-qdrant" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --dry-run
+```
+
+The initial migration implementation focuses on single dense vectors, IDs, metadata, batch migration, and one collection at a time.
+
 ## Error Handling
 
 VecPort provides a common exception hierarchy.

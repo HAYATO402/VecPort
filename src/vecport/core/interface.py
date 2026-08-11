@@ -54,6 +54,7 @@ class VectorDatabase(ABC):
         collection: str,
         vector: list[float],
         top_k: int = 10,
+        filters: dict | None = None,
     ) -> list[SearchResult]:
         pass
 

@@ -27,3 +27,9 @@ volumes/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Python package metadata
+*.egg-info/
+
+# Local Qdrant data
+.vecport-qdrant/

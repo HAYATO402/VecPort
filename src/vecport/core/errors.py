@@ -15,3 +15,6 @@ class DriverNotFoundError(VecPortError):
 
 class InvalidConnectionURLError(VecPortError):
     """Raised when a VecPort connection URL is invalid."""
+
+class MigrationError(VecPortError):
+    """Raised when a VecPort migration fails."""
