@@ -16,33 +16,51 @@ from vecport.core.errors import DriverNotFoundError
 
 from vecport.core.connection import parse_connection_url
 
+from vecport.core.registry import (
+    create_driver,
+    list_drivers,
+    register_driver,
+)
+
+register_driver(
+    "qdrant",
+    QdrantDriver,
+    replace=True,
+)
+
+register_driver(
+    "pinecone",
+    PineconeDriver,
+    replace=True,
+)
+
+register_driver(
+    "weaviate",
+    WeaviateDriver,
+    replace=True,
+)
+
+register_driver(
+    "milvus",
+    MilvusDriver,
+    replace=True,
+)
+
+register_driver(
+    "pgvector",
+    PgVectorDriver,
+    replace=True,
+)
+
 
 def connect(
     driver: str,
     **kwargs,
 ):
-    if driver == "qdrant":
-        return QdrantDriver(**kwargs)
 
-    if driver == "pinecone":
-        return PineconeDriver(**kwargs)
-
-    if driver == "weaviate":
-        return WeaviateDriver(**kwargs)
-
-    if driver == "milvus":
-        return MilvusDriver(**kwargs)
-
-    if driver == "pgvector":
-        return PgVectorDriver(**kwargs)
-
-    
-    from vecport.core.errors import (
-        DriverNotFoundError,
-    )
-
-    raise DriverNotFoundError(
-        f"Unsupported VecPort driver: {driver}"
+    return create_driver(
+        driver,
+        **kwargs,
     )
 
 __all__ = [
