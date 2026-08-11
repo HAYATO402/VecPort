@@ -14,6 +14,8 @@ from vecport.drivers.pgvector import PgVectorDriver
 
 from vecport.core.errors import DriverNotFoundError
 
+from vecport.core.connection import parse_connection_url
+
 
 def connect(
     driver: str,
@@ -49,3 +51,20 @@ __all__ = [
     "SearchResult",
     "Capabilities",
 ]
+
+def connect_url(
+    url: str,
+    **overrides,
+):
+
+    config = parse_connection_url(url)
+
+    options = {
+        **config.options,
+        **overrides,
+    }
+
+    return connect(
+        config.driver,
+        **options,
+    )

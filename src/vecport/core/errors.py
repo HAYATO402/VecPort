@@ -12,3 +12,6 @@ class UnsupportedFeatureError(VecPortError):
 
 class DriverNotFoundError(VecPortError):
     """Raised when an unknown driver is requested."""
+
+class InvalidConnectionURLError(VecPortError):
+    """Raised when a VecPort connection URL is invalid."""
