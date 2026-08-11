@@ -272,6 +272,40 @@ print(capabilities.filter_operators)
 
 This makes it possible to build applications that adapt to the capabilities of the selected backend.
 
+## Extensible Driver Registry
+
+VecPort uses a driver registry that allows additional vector database drivers to be registered without modifying the core connection API.
+
+```python
+from vecport import connect, register_driver
+
+
+class MyVectorDriver:
+
+    def __init__(self, **kwargs):
+        self.options = kwargs
+
+
+register_driver(
+    "my-vector-db",
+    MyVectorDriver,
+)
+
+db = connect(
+    "my-vector-db",
+)
+```
+
+Built-in drivers and third-party drivers can use the same VecPort connection interface.
+
+```python
+db = connect("qdrant")
+db = connect("milvus")
+db = connect("my-vector-db")
+```
+
+The driver registry provides a foundation for a future VecPort driver ecosystem and third-party driver compliance tooling.
+
 ## Error Handling
 
 VecPort provides a common exception hierarchy.
