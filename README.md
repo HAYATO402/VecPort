@@ -138,6 +138,53 @@ results = db.search(
 )
 ```
 
+## Unified Connection URLs
+
+VecPort supports a unified connection URL format for selecting and configuring vector database drivers.
+
+```python
+from vecport import connect_url
+
+db = connect_url(
+    "vecport://qdrant"
+)
+```
+
+Connection options can be provided through query parameters.
+
+### Milvus
+
+```python
+db = connect_url(
+    "vecport://milvus?uri=http://localhost:19530"
+)
+```
+
+### pgvector
+
+```python
+db = connect_url(
+    "vecport://pgvector?host=localhost&port=5432&dbname=vecport"
+)
+```
+
+Sensitive credentials should not be stored inside connection URLs.
+
+Pass credentials separately, preferably through environment variables.
+
+```python
+import os
+
+from vecport import connect_url
+
+db = connect_url(
+    "vecport://pinecone",
+    api_key=os.environ["PINECONE_API_KEY"],
+)
+```
+
+Unified connection URLs provide a foundation for future connection profiles, managed infrastructure, migration tooling, and routing.
+
 ## Common Filter DSL
 
 Vector databases use different filtering systems.
