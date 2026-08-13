@@ -363,9 +363,11 @@ Using the same:
 
 allows the same workload to be reproduced across multiple backends.
 
-### JSON Benchmark Reports
+### Benchmark Reports
 
-Benchmark comparison results can also be written to JSON.
+Benchmark comparison results can be exported as JSON or CSV.
+
+#### JSON
 
 ```bash
 vecport benchmark compare \
@@ -376,10 +378,8 @@ vecport benchmark compare \
   --top-k 10 \
   --iterations 100 \
   --warmup 10 \
-  --output benchmark_100k_128.json
-```
-
-This makes benchmark results easier to archive, compare, visualize, and process in CI or external tooling.
+  --format json \
+  --output benchmarks/100k-128.json
 
 ## Extensible Driver Registry
 

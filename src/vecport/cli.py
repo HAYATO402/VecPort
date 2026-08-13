@@ -1,4 +1,5 @@
 import argparse
+import csv
 import os
 import json
 
@@ -280,6 +281,16 @@ def main():
         "--output",
     )
 
+    benchmark.add_argument(
+        "--format",
+        choices=[
+            "json",
+            "csv",
+        ],
+        default="json",
+        help="Output report format.",
+    )
+
     args = parser.parse_args()
 
     if (
@@ -555,6 +566,7 @@ def main():
 
                     payload = {
                         "collection": args.collection,
+                        "dimension": args.dimension,
                         "top_k": args.top_k,
                         "iterations": args.iterations,
                         "warmup": args.warmup,
@@ -573,6 +585,73 @@ def main():
                             for report in comparison.reports
                         ],
                     }
+
+                    if args.format == "json":
+
+                        with open(
+                            args.output,
+                            "w",
+                            encoding="utf-8",
+                        ) as file:
+
+                            json.dump(
+                                payload,
+                                file,
+                                indent=2,
+                            )
+
+                    elif args.format == "csv":
+
+                        with open(
+                            args.output,
+                            "w",
+                            newline="",
+                            encoding="utf-8",
+                        ) as file:
+
+                            writer = csv.DictWriter(
+                                file,
+                                fieldnames=[
+                                    "collection",
+                                    "dimension",
+                                    "top_k",
+                                    "iterations",
+                                    "warmup",
+                                    "label",
+                                    "requests",
+                                    "successes",
+                                    "failures",
+                                    "success_rate",
+                                    "average_ms",
+                                    "p50_ms",
+                                    "p95_ms",
+                                    "p99_ms",
+                                ],
+                            )
+
+                            writer.writeheader()
+
+                            for report in comparison.reports:
+
+                                writer.writerow(
+                                    {
+                                        "collection": args.collection,
+                                        "dimension": args.dimension,
+                                        "top_k": args.top_k,
+                                        "iterations": args.iterations,
+                                        "warmup": args.warmup,
+                                        "label": report.label,
+                                        "requests": report.requests,
+                                        "successes": report.successes,
+                                        "failures": report.failures,
+                                        "success_rate": report.success_rate,
+                                        "average_ms": report.average_ms,
+                                        "p50_ms": report.p50_ms,
+                                        "p95_ms": report.p95_ms,
+                                        "p99_ms": report.p99_ms,
+                                    }
+                                )
+                    
 
                     with open(
                         args.output,
