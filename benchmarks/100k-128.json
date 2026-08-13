@@ -1,0 +1,31 @@
+{
+  "collection": "vecport_benchmark_100k_128",
+  "dimension": 128,
+  "top_k": 10,
+  "iterations": 100,
+  "warmup": 10,
+  "results": [
+    {
+      "label": "qdrant",
+      "requests": 100,
+      "successes": 100,
+      "failures": 0,
+      "success_rate": 100.0,
+      "average_ms": 15.099968999711564,
+      "p50_ms": 15.520400003879331,
+      "p95_ms": 26.054200003272854,
+      "p99_ms": 26.858900004299358
+    },
+    {
+      "label": "milvus",
+      "requests": 100,
+      "successes": 100,
+      "failures": 0,
+      "success_rate": 100.0,
+      "average_ms": 4.147744999645511,
+      "p50_ms": 4.107299988390878,
+      "p95_ms": 4.746000005980022,
+      "p99_ms": 5.653100000927225
+    }
+  ]
+}
