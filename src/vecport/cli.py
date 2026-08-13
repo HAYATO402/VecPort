@@ -1,7 +1,5 @@
 import argparse
-import csv
 import os
-import json
 
 from vecport import connect_url
 
@@ -21,6 +19,11 @@ from vecport.core.benchmark import (
 
 from vecport.core.benchmark_dataset import (
     make_benchmark_query,
+)
+
+from vecport.core.reporting import (
+    write_csv_report,
+    write_json_report,
 )
 
 
@@ -201,6 +204,21 @@ def main():
         ),
     )
 
+    migrate.add_argument(
+        "--output",
+        help="Write the migration report to a file.",
+    )
+
+    migrate.add_argument(
+        "--format",
+        choices=[
+            "json",
+            "csv",
+        ],
+        default="json",
+        help="Migration report format.",
+    )
+
     benchmark = commands.add_parser(
         "benchmark",
         help="Benchmark vector search performance",
@@ -324,49 +342,29 @@ def main():
                 source,
                 target,
                 collection=args.collection,
-                target_collection=(
-                    args.target_collection
-                ),
+                target_collection=args.target_collection,
                 batch_size=args.batch_size,
-                recreate_target=(
-                    args.recreate_target
-                ),
+                recreate_target=args.recreate_target,
                 dry_run=args.dry_run,
             )
 
+            verification = None
+
+
+            print("Migration complete")
             print(
-                "Migration complete"
+                f"Source: {report.source_collection}"
+            )
+            print(
+                f"Target: {report.target_collection}"
+            )
+            print(
+                f"Scanned: {report.scanned}"
+            )
+            print(
+                f"Migrated: {report.migrated}"
             )
 
-            print(
-                f"Source: "
-                f"{report.source_collection}"
-            )
-
-            print(
-                f"Target: "
-                f"{report.target_collection}"
-            )
-
-            print(
-                f"Scanned: "
-                f"{report.scanned}"
-            )
-
-            print(
-                f"Migrated: "
-                f"{report.migrated}"
-            )
-
-            print(
-                f"Dimension: "
-                f"{report.dimension}"
-            )
-
-            print(
-                f"Dry run: "
-                f"{report.dry_run}"
-            )
 
             if args.verify:
 
@@ -376,52 +374,38 @@ def main():
                     source_collection=args.collection,
                     target_collection=(
                         args.target_collection
+                        or args.collection
                     ),
                     batch_size=args.batch_size,
                 )
 
                 print()
+                print("Verification report")
                 print(
-                    "Verification report"
+                    f"Source count: {verification.source_count}"
                 )
-
                 print(
-                    f"Source count: "
-                    f"{verification.source_count}"
+                    f"Target count: {verification.target_count}"
                 )
-
                 print(
-                    f"Target count: "
-                    f"{verification.target_count}"
+                    f"Matched IDs: {verification.matched_ids}"
                 )
-
                 print(
-                    f"Matched IDs: "
-                    f"{verification.matched_ids}"
+                    f"Missing IDs: {verification.missing_ids}"
                 )
-
                 print(
-                    f"Missing IDs: "
-                    f"{verification.missing_ids}"
+                    f"Extra records: {verification.extra_records}"
                 )
-
                 print(
-                    f"Extra records: "
-                    f"{verification.extra_records}"
-                )
-
-                print(
-                    f"Dimensions: "
+                    "Dimensions: "
                     f"{'OK' if verification.dimensions_ok else 'FAILED'}"
                 )
-
                 print(
-                    f"Vectors: "
+                    "Vectors: "
                     f"{'OK' if verification.vectors_ok else 'FAILED'}"
                 )
-
                 print(
-                    f"Metadata: "
+                    "Metadata: "
                     f"{'OK' if verification.metadata_ok else 'FAILED'}"
                 )
 
@@ -431,11 +415,147 @@ def main():
                     print(
                         "Migration verification: PASSED"
                     )
-
                 else:
-                    raise MigrationError(
-                        "Migration verification failed"
+                    print(
+                        "Migration verification: FAILED"
                     )
+
+
+            if args.output:
+
+                payload = {
+                    "type": "migration",
+                    "migration": {
+                        "source_collection": (
+                            report.source_collection
+                        ),
+                        "target_collection": (
+                            report.target_collection
+                        ),
+                        "scanned": report.scanned,
+                        "migrated": report.migrated,
+                    },
+                }
+
+                if verification is not None:
+
+                    payload["verification"] = {
+                        "source_count": (
+                            verification.source_count
+                        ),
+                        "target_count": (
+                            verification.target_count
+                        ),
+                        "matched_ids": (
+                            verification.matched_ids
+                        ),
+                        "missing_ids": (
+                            verification.missing_ids
+                        ),
+                        "extra_records": (
+                            verification.extra_records
+                        ),
+                        "dimensions_ok": (
+                            verification.dimensions_ok
+                        ),
+                        "vectors_ok": (
+                            verification.vectors_ok
+                        ),
+                        "metadata_ok": (
+                            verification.metadata_ok
+                        ),
+                        "passed": (
+                            verification.passed
+                        ),
+                    }
+
+                if args.format == "json":
+
+                    write_json_report(
+                        args.output,
+                        payload,
+                    )
+
+                elif args.format == "csv":
+
+                    row = {
+                        "source_collection": (
+                            report.source_collection
+                        ),
+                        "target_collection": (
+                            report.target_collection
+                        ),
+                        "scanned": report.scanned,
+                        "migrated": report.migrated,
+                        "source_count": "",
+                        "target_count": "",
+                        "matched_ids": "",
+                        "missing_ids": "",
+                        "extra_records": "",
+                        "dimensions_ok": "",
+                        "vectors_ok": "",
+                        "metadata_ok": "",
+                        "passed": "",
+                    }
+
+                    if verification is not None:
+
+                        row.update(
+                            {
+                                "source_count": (
+                                    verification.source_count
+                                ),
+                                "target_count": (
+                                    verification.target_count
+                                ),
+                                "matched_ids": (
+                                    verification.matched_ids
+                                ),
+                                "missing_ids": (
+                                    verification.missing_ids
+                                ),
+                                "extra_records": (
+                                    verification.extra_records
+                                ),
+                                "dimensions_ok": (
+                                    verification.dimensions_ok
+                                ),
+                                "vectors_ok": (
+                                    verification.vectors_ok
+                                ),
+                                "metadata_ok": (
+                                    verification.metadata_ok
+                                ),
+                                "passed": (
+                                    verification.passed
+                                ),
+                            }
+                        )
+
+                    write_csv_report(
+                        args.output,
+                        fieldnames=[
+                            "source_collection",
+                            "target_collection",
+                            "scanned",
+                            "migrated",
+                            "source_count",
+                            "target_count",
+                            "matched_ids",
+                            "missing_ids",
+                            "extra_records",
+                            "dimensions_ok",
+                            "vectors_ok",
+                            "metadata_ok",
+                            "passed",
+                        ],
+                        rows=[row],
+                    )
+
+                print()
+                print(
+                    f"Report written to: {args.output}"
+                )
 
         finally:
 
@@ -588,69 +708,56 @@ def main():
 
                     if args.format == "json":
 
-                        with open(
+                        write_json_report(
                             args.output,
-                            "w",
-                            encoding="utf-8",
-                        ) as file:
-
-                            json.dump(
-                                payload,
-                                file,
-                                indent=2,
-                            )
+                            payload,
+                        )
 
                     elif args.format == "csv":
 
-                        with open(
-                            args.output,
-                            "w",
-                            newline="",
-                            encoding="utf-8",
-                        ) as file:
+                        rows = []
 
-                            writer = csv.DictWriter(
-                                file,
-                                fieldnames=[
-                                    "collection",
-                                    "dimension",
-                                    "top_k",
-                                    "iterations",
-                                    "warmup",
-                                    "label",
-                                    "requests",
-                                    "successes",
-                                    "failures",
-                                    "success_rate",
-                                    "average_ms",
-                                    "p50_ms",
-                                    "p95_ms",
-                                    "p99_ms",
-                                ],
+                        for report in comparison.reports:
+
+                            rows.append(
+                                {
+                                    "collection": args.collection,
+                                    "dimension": args.dimension,
+                                    "top_k": args.top_k,
+                                    "iterations": args.iterations,
+                                    "warmup": args.warmup,
+                                    "label": report.label,
+                                    "requests": report.requests,
+                                    "successes": report.successes,
+                                    "failures": report.failures,
+                                    "success_rate": report.success_rate,
+                                    "average_ms": report.average_ms,
+                                    "p50_ms": report.p50_ms,
+                                    "p95_ms": report.p95_ms,
+                                    "p99_ms": report.p99_ms,
+                                }
                             )
 
-                            writer.writeheader()
-
-                            for report in comparison.reports:
-
-                                writer.writerow(
-                                    {
-                                        "collection": args.collection,
-                                        "dimension": args.dimension,
-                                        "top_k": args.top_k,
-                                        "iterations": args.iterations,
-                                        "warmup": args.warmup,
-                                        "label": report.label,
-                                        "requests": report.requests,
-                                        "successes": report.successes,
-                                        "failures": report.failures,
-                                        "success_rate": report.success_rate,
-                                        "average_ms": report.average_ms,
-                                        "p50_ms": report.p50_ms,
-                                        "p95_ms": report.p95_ms,
-                                        "p99_ms": report.p99_ms,
-                                    }
-                                )
+                        write_csv_report(
+                            args.output,
+                            fieldnames=[
+                                "collection",
+                                "dimension",
+                                "top_k",
+                                "iterations",
+                                "warmup",
+                                "label",
+                                "requests",
+                                "successes",
+                                "failures",
+                                "success_rate",
+                                "average_ms",
+                                "p50_ms",
+                                "p95_ms",
+                                "p99_ms",
+                            ],
+                            rows=rows,
+                        )
                     
 
                     with open(

@@ -461,6 +461,79 @@ Metadata: OK
 Migration verification: PASSED
 ```
 
+### Migration Reports
+
+Migration results can be exported as JSON or CSV.
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?url=http://localhost:6333" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --target-collection documents_migrated \
+  --recreate-target \
+  --verify \
+  --format json \
+  --output reports/migration.json
+```
+
+Migration reports can include:
+
+- source collection
+- target collection
+- scanned records
+- migrated records
+- source record count
+- target record count
+- matched IDs
+- missing IDs
+- extra records
+- vector dimension validation
+- vector value validation
+- metadata validation
+- final verification status
+
+Example JSON structure:
+
+```json
+{
+  "type": "migration",
+  "migration": {
+    "source_collection": "documents",
+    "target_collection": "documents_migrated",
+    "scanned": 10000,
+    "migrated": 10000
+  },
+  "verification": {
+    "source_count": 10000,
+    "target_count": 10000,
+    "matched_ids": 10000,
+    "missing_ids": 0,
+    "extra_records": 0,
+    "dimensions_ok": true,
+    "vectors_ok": true,
+    "metadata_ok": true,
+    "passed": true
+  }
+}
+```
+
+CSV output is also supported:
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?url=http://localhost:6333" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --target-collection documents_migrated \
+  --recreate-target \
+  --verify \
+  --format csv \
+  --output reports/migration.csv
+```
+
+JSON is useful for CI pipelines, APIs, and automated tooling, while CSV is convenient for spreadsheets and data analysis.
+
 ### Dry Run
 
 Inspect a migration without writing to the destination:
