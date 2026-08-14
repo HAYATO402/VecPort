@@ -367,6 +367,38 @@ allows the same workload to be reproduced across multiple backends.
 
 Benchmark comparison results can be exported as JSON or CSV.
 
+### YAML Configuration
+
+Benchmark settings can be stored in a YAML configuration file.
+
+Example `vecport.yml`:
+
+```yaml
+benchmark:
+  targets:
+    - label: qdrant
+      url: "vecport://qdrant?url=http://localhost:6333"
+
+    - label: milvus
+      url: "vecport://milvus?uri=http://localhost:19530"
+
+  collection: vecport_benchmark_100k_128
+  dimension: 128
+  top_k: 10
+  iterations: 100
+  warmup: 10
+  format: json
+  output: benchmarks/100k-128.json
+```
+
+Run the benchmark with:
+
+```bash
+vecport benchmark compare --config vecport.yml
+```
+
+Command-line options override values from the YAML configuration.
+
 #### JSON
 
 ```bash

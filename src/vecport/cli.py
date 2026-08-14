@@ -21,6 +21,8 @@ from vecport.core.benchmark_dataset import (
     make_benchmark_query,
 )
 
+from vecport.core.config import load_config
+
 from vecport.core.reporting import (
     write_csv_report,
     write_json_report,
@@ -231,8 +233,7 @@ def main():
 
     benchmark.add_argument(
         "--collection",
-        required=True,
-        help="Collection to benchmark",
+        default=None,
     )
 
     benchmark.add_argument(
@@ -247,19 +248,19 @@ def main():
     benchmark.add_argument(
         "--top-k",
         type=int,
-        default=10,
+        default=None,
     )
 
     benchmark.add_argument(
         "--iterations",
         type=int,
-        default=20,
+        default=None,
     )
 
     benchmark.add_argument(
         "--warmup",
         type=int,
-        default=3,
+        default=None,
     )
 
     benchmark.add_argument(
@@ -277,7 +278,7 @@ def main():
     benchmark.add_argument(
         "--target",
         action="append",
-        default=[],
+        default=None,
         help=(
             "Benchmark target in LABEL=URL format. "
             "Repeat for multiple databases."
@@ -287,6 +288,7 @@ def main():
     benchmark.add_argument(
         "--dimension",
         type=int,
+        default=None,
         )
 
     benchmark.add_argument(
@@ -305,11 +307,27 @@ def main():
             "json",
             "csv",
         ],
-        default="json",
+        default=None,
         help="Output report format.",
     )
 
+    benchmark.add_argument(
+        "--config",
+        help="Load benchmark settings from a YAML file.",
+    )
+
     args = parser.parse_args()
+
+    config = {}
+
+    if getattr(
+        args,
+        "config",
+        None,
+    ):
+        config = load_config(
+            args.config
+        )
 
     if (
         args.command == "migrate"
@@ -421,7 +439,7 @@ def main():
                     )
 
 
-            if args.output:
+            if output:
 
                 payload = {
                     "type": "migration",
@@ -469,14 +487,14 @@ def main():
                         ),
                     }
 
-                if args.format == "json":
+                if output_format == "json":
 
                     write_json_report(
-                        args.output,
+                        output,
                         payload,
                     )
 
-                elif args.format == "csv":
+                elif output_format == "csv":
 
                     row = {
                         "source_collection": (
@@ -533,7 +551,7 @@ def main():
                         )
 
                     write_csv_report(
-                        args.output,
+                        output,
                         fieldnames=[
                             "source_collection",
                             "target_collection",
@@ -554,7 +572,7 @@ def main():
 
                 print()
                 print(
-                    f"Report written to: {args.output}"
+                    f"Report written to: {output}"
                 )
 
         finally:
@@ -564,42 +582,6 @@ def main():
 
     elif args.command == "benchmark":
 
-        if args.top_k <= 0:
-            parser.error(
-                "--top-k must be greater than 0"
-            )
-
-        if args.iterations <= 0:
-            parser.error(
-                "--iterations must be greater than 0"
-            )
-
-        if args.warmup < 0:
-            parser.error(
-                "--warmup cannot be negative"
-            )
-
-        if args.vector:
-
-            query_vector = args.vector
-
-        elif args.dimension:
-
-            if args.dimension <= 0:
-                parser.error(
-                    "--dimension must be greater than 0"
-                )
-
-            query_vector = make_benchmark_query(
-                dimension=args.dimension,
-                seed=args.query_seed,
-            )
-
-        else:
-
-            parser.error(
-                "Provide either --vector or --dimension"
-            )
 
         # -------------------------
         # Compare mode
@@ -607,17 +589,145 @@ def main():
 
         if args.benchmark_action == "compare":
 
-            if len(args.target) < 2:
+            benchmark_config = config.get(
+                "benchmark",
+                {},
+            )
+
+            config_targets = []
+
+            for item in benchmark_config.get(
+                "targets",
+                [],
+            ):
+                label = item["label"]
+                url = item["url"]
+
+                config_targets.append(
+                    f"{label}={url}"
+                )
+
+            targets = (
+                args.target
+                or config_targets
+            )
+
+            collection = (
+                args.collection
+                or benchmark_config.get(
+                    "collection"
+                )
+            )
+
+            dimension = (
+                args.dimension
+                if args.dimension is not None
+                else benchmark_config.get(
+                    "dimension"
+                )
+            )
+
+            top_k = (
+                args.top_k
+                if args.top_k is not None
+                else benchmark_config.get(
+                    "top_k",
+                    10,
+                )
+            )
+
+            iterations = (
+                args.iterations
+                if args.iterations is not None
+                else benchmark_config.get(
+                    "iterations",
+                    100,
+                )
+            )
+
+            warmup = (
+                args.warmup
+                if args.warmup is not None
+                else benchmark_config.get(
+                    "warmup",
+                    10,
+                )
+            )
+
+            output_format = (
+                args.format
+                if args.format is not None
+                else benchmark_config.get(
+                    "format",
+                    "json",
+                )
+            )
+
+            output = (
+                args.output
+                or benchmark_config.get(
+                    "output"
+                )
+            )
+
+            if not targets:
+                parser.error(
+                    "Benchmark targets are required. "
+                    "Use --target or --config."
+                )
+
+            if len(targets) < 2:
                 parser.error(
                     "benchmark compare requires "
                     "at least two --target values"
+                )
+
+            if not collection:
+                parser.error(
+                    "Benchmark collection is required. "
+                    "Use --collection or --config."
+                )
+
+            if dimension is None:
+                parser.error(
+                    "Benchmark dimension is required. "
+                    "Use --dimension or --config."
+                )
+
+            if dimension <= 0:
+                parser.error(
+                    "--dimension must be greater than 0"
+                )
+
+            if top_k <= 0:
+                parser.error(
+                    "--top-k must be greater than 0"
+                )
+
+            if iterations <= 0:
+                parser.error(
+                    "--iterations must be greater than 0"
+                )
+
+            if warmup < 0:
+                parser.error(
+                    "--warmup cannot be negative"
+                )
+
+            # 6. Queryを作る
+            if args.vector:
+                query_vector = args.vector
+            else:
+                query_vector = make_benchmark_query(
+                    dimension=dimension,
+                    seed=args.query_seed,
                 )
 
             connections = []
 
             try:
 
-                for raw_target in args.target:
+                for raw_target in targets:
 
                     try:
 
@@ -647,11 +757,11 @@ def main():
 
                 comparison = compare_benchmarks(
                     connections,
-                    collection=args.collection,
+                    collection=collection,
                     vector=query_vector,
-                    top_k=args.top_k,
-                    iterations=args.iterations,
-                    warmup=args.warmup,
+                    top_k=top_k,
+                    iterations=iterations,
+                    warmup=warmup,
                 )
 
 
@@ -682,14 +792,14 @@ def main():
                         f"{report.success_rate:>11.2f}%"
                     )
 
-                if args.output:
+                if output:
 
                     payload = {
-                        "collection": args.collection,
-                        "dimension": args.dimension,
-                        "top_k": args.top_k,
-                        "iterations": args.iterations,
-                        "warmup": args.warmup,
+                        "collection": collection,
+                        "dimension": dimension,
+                        "top_k": top_k,
+                        "iterations": iterations,
+                        "warmup": warmup,
                         "results": [
                             {
                                 "label": report.label,
@@ -706,14 +816,14 @@ def main():
                         ],
                     }
 
-                    if args.format == "json":
+                    if output_format == "json":
 
                         write_json_report(
-                            args.output,
+                            output,
                             payload,
                         )
 
-                    elif args.format == "csv":
+                    elif output_format == "csv":
 
                         rows = []
 
@@ -739,7 +849,7 @@ def main():
                             )
 
                         write_csv_report(
-                            args.output,
+                            output,
                             fieldnames=[
                                 "collection",
                                 "dimension",
@@ -758,23 +868,11 @@ def main():
                             ],
                             rows=rows,
                         )
-                    
-
-                    with open(
-                        args.output,
-                        "w",
-                        encoding="utf-8",
-                    ) as file:
-
-                        json.dump(
-                            payload,
-                            file,
-                            indent=2,
-                        )
+                
 
                     print()
                     print(
-                        f"Report written to: {args.output}"
+                        f"Report written to: {output}"
                     )
 
 

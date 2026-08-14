@@ -33,3 +33,5 @@ Thumbs.db
 
 # Local Qdrant data
 .vecport-qdrant/
+
+vecport.yml
