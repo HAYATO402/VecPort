@@ -74,3 +74,89 @@ def test_missing_config():
         load_config(
             "does-not-exist.yml"
         )
+
+def test_expand_environment_variable(
+    tmp_path,
+    monkeypatch,
+):
+
+    monkeypatch.setenv(
+        "VECPORT_TEST_SECRET",
+        "secret-value",
+    )
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+service:
+  api_key: "${VECPORT_TEST_SECRET}"
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(
+        str(path)
+    )
+
+    assert (
+        config["service"]["api_key"]
+        == "secret-value"
+    )
+
+def test_expand_environment_variable_in_string(
+    tmp_path,
+    monkeypatch,
+):
+
+    monkeypatch.setenv(
+        "VECPORT_TEST_SECRET",
+        "abc123",
+    )
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+service:
+  url: "https://example.com?key=${VECPORT_TEST_SECRET}"
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(
+        str(path)
+    )
+
+    assert (
+        config["service"]["url"]
+        == "https://example.com?key=abc123"
+    )
+
+def test_missing_environment_variable(
+    tmp_path,
+    monkeypatch,
+):
+
+    monkeypatch.delenv(
+        "VECPORT_MISSING_SECRET",
+        raising=False,
+    )
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+service:
+  api_key: "${VECPORT_MISSING_SECRET}"
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="VECPORT_MISSING_SECRET",
+    ):
+        load_config(
+            str(path)
+        )
