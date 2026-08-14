@@ -5,10 +5,7 @@ from vecport import connect_url
 
 from vecport.core.migration import (
     migrate_collection,
-)
-
-from vecport.core.migration import (
-    migrate_collection,
+    plan_migration,
     verify_migration,
 )
 
@@ -212,6 +209,15 @@ def main():
         "--dry-run",
         action="store_true",
         default=None,
+    )
+
+    migrate.add_argument(
+        "--plan",
+        action="store_true",
+        help=(
+            "Analyze migration compatibility "
+            "without writing data."
+        ),
     )
 
     migrate.add_argument(
@@ -494,6 +500,107 @@ def main():
         )
 
         try:
+
+            if args.plan:
+
+                plan = plan_migration(
+                    source,
+                    target,
+                    source_collection=collection,
+                    target_collection=target_collection,
+                    batch_size=batch_size,
+                )
+
+                print()
+                print("Migration plan")
+                print()
+
+                print(
+                    "Source collection: "
+                    f"{plan.source_collection}"
+                )
+
+                print(
+                    "Target collection: "
+                    f"{plan.target_collection}"
+                )
+
+                print()
+
+                print(
+                    f"Records: "
+                    f"{plan.source_count}"
+                )
+
+                print(
+                    f"Dimension: "
+                    f"{plan.dimension}"
+                )
+
+                print(
+                    f"Batch size: "
+                    f"{plan.batch_size}"
+                )
+
+                print(
+                    "Estimated batches: "
+                    f"{plan.estimated_batches}"
+                )
+
+                print()
+
+                print(
+                    "Dimensions: "
+                    + (
+                        "OK"
+                        if plan.dimensions_ok
+                        else "FAILED"
+                    )
+                )
+
+                print(
+                    "Dense vector support: "
+                    + (
+                        "OK"
+                        if plan.dense_vector_ok
+                        else "FAILED"
+                    )
+                )
+
+                print()
+
+                print(
+                    "Driver capability gaps:"
+                )
+
+                if plan.capability_gaps:
+
+                    for gap in plan.capability_gaps:
+                        print(
+                            f"- {gap}"
+                        )
+
+                else:
+                    print(
+                        "- None"
+                    )
+
+                print()
+                print(
+                    "No data will be written."
+                )
+                print()
+
+                print(
+                    "Migration plan: "
+                    + (
+                        "READY"
+                        if plan.ready
+                        else "NOT READY"
+                    )
+                )
+
+                return 0
 
             report = migrate_collection(
                 source,

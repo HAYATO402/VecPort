@@ -21,6 +21,218 @@ from vecport.core.errors import (
     MigrationError,
 )
 
+@dataclass(frozen=True)
+class MigrationPlan:
+    source_collection: str
+    target_collection: str
+
+    source_count: int
+    dimension: int | None
+
+    batch_size: int
+    estimated_batches: int
+
+    dimensions_ok: bool
+    dense_vector_ok: bool
+
+    capability_gaps: tuple[str, ...]
+
+    ready: bool
+
+
+def _migration_capability_gaps(
+    source_capabilities,
+    target_capabilities,
+) -> tuple[str, ...]:
+
+    gaps = []
+
+    capability_fields = (
+        (
+            "metadata_filter",
+            "metadata filtering",
+        ),
+        (
+            "sparse_vector",
+            "sparse vectors",
+        ),
+        (
+            "hybrid_search",
+            "hybrid search",
+        ),
+        (
+            "namespaces",
+            "namespaces",
+        ),
+        (
+            "named_vectors",
+            "named vectors",
+        ),
+    )
+
+    for attribute, label in capability_fields:
+
+        source_supports = getattr(
+            source_capabilities,
+            attribute,
+        )
+
+        target_supports = getattr(
+            target_capabilities,
+            attribute,
+        )
+
+        if (
+            source_supports
+            and not target_supports
+        ):
+            gaps.append(
+                label
+            )
+
+    source_operators = set(
+        source_capabilities.filter_operators
+    )
+
+    target_operators = set(
+        target_capabilities.filter_operators
+    )
+
+    missing_operators = sorted(
+        source_operators
+        - target_operators
+    )
+
+    if missing_operators:
+
+        gaps.append(
+            "filter operators: "
+            + ", ".join(
+                missing_operators
+            )
+        )
+
+    return tuple(
+        gaps
+    )
+
+def plan_migration(
+    source,
+    target,
+    *,
+    source_collection: str,
+    target_collection: str | None = None,
+    batch_size: int = 100,
+) -> MigrationPlan:
+
+    if batch_size <= 0:
+        raise MigrationError(
+            "batch_size must be greater than 0"
+        )
+
+    destination = (
+        target_collection
+        or source_collection
+    )
+
+    source_capabilities = (
+        source.capabilities()
+    )
+
+    target_capabilities = (
+        target.capabilities()
+    )
+
+    source_records = iter(
+        source.scan(
+            source_collection,
+            batch_size=batch_size,
+        )
+    )
+
+    first_record = next(
+        source_records,
+        None,
+    )
+
+    if first_record is None:
+
+        capability_gaps = (
+            _migration_capability_gaps(
+                source_capabilities,
+                target_capabilities,
+            )
+        )
+
+        return MigrationPlan(
+            source_collection=source_collection,
+            target_collection=destination,
+            source_count=0,
+            dimension=None,
+            batch_size=batch_size,
+            estimated_batches=0,
+            dimensions_ok=True,
+            dense_vector_ok=(
+                source_capabilities.dense_vector
+                and target_capabilities.dense_vector
+            ),
+            capability_gaps=capability_gaps,
+            ready=False,
+        )
+
+    dimension = len(
+        first_record.vector
+    )
+
+    source_count = 1
+    dimensions_ok = True
+
+    for record in source_records:
+
+        source_count += 1
+
+        if (
+            len(record.vector)
+            != dimension
+        ):
+            dimensions_ok = False
+
+    estimated_batches = (
+        source_count
+        + batch_size
+        - 1
+    ) // batch_size
+
+    dense_vector_ok = (
+        source_capabilities.dense_vector
+        and target_capabilities.dense_vector
+    )
+
+    capability_gaps = (
+        _migration_capability_gaps(
+            source_capabilities,
+            target_capabilities,
+        )
+    )
+
+    ready = (
+        source_count > 0
+        and dimensions_ok
+        and dense_vector_ok
+    )
+
+    return MigrationPlan(
+        source_collection=source_collection,
+        target_collection=destination,
+        source_count=source_count,
+        dimension=dimension,
+        batch_size=batch_size,
+        estimated_batches=estimated_batches,
+        dimensions_ok=dimensions_ok,
+        dense_vector_ok=dense_vector_ok,
+        capability_gaps=capability_gaps,
+        ready=ready,
+    )
 
 def migrate_collection(
     source,
