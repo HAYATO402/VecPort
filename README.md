@@ -399,6 +399,31 @@ vecport benchmark compare --config vecport.yml
 
 Command-line options override values from the YAML configuration.
 
+### Environment Variables and Secrets
+
+Sensitive values such as API keys should not be stored directly in `vecport.yml`.
+
+VecPort supports environment-variable references using `${VARIABLE_NAME}` syntax.
+
+```yaml
+service:
+  api_key: "${PINECONE_API_KEY}"
+```
+
+Set the environment variable before running VecPort.
+
+PowerShell:
+
+```powershell
+$env:PINECONE_API_KEY="your-api-key"
+```
+
+VecPort resolves environment-variable references when loading the YAML configuration.
+
+If a referenced environment variable is not defined, VecPort stops with an error instead of using an empty secret.
+
+Do not commit API keys, tokens, passwords, or other credentials to Git.
+
 #### JSON
 
 ```bash

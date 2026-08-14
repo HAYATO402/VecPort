@@ -1,3 +1,8 @@
+# Secrets should be provided through environment variables.
+# Example:
+#
+# api_key: "${PINECONE_API_KEY}"
+
 benchmark:
   targets:
     - label: qdrant
