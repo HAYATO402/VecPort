@@ -20,6 +20,8 @@ class MigrationReport:
 
     resumed: bool = False
     skipped_existing: int = 0
+    repaired_existing: int = 0
+    existing_policy: str | None = None
 
 from itertools import chain
 
@@ -481,11 +483,14 @@ def plan_migration(
         ready=ready,
     )
 
-def _filter_existing_records(
+def _prepare_resume_records(
     target,
     collection: str,
     records,
+    *,
+    existing_policy: str,
 ):
+
     ids = [
         record.id
         for record in records
@@ -496,26 +501,101 @@ def _filter_existing_records(
         ids,
     )
 
-    existing_ids = {
-        record.id
+    existing_by_id = {
+        record.id: record
         for record in existing_records
     }
 
-    pending_records = [
-        record
-        for record in records
-        if record.id not in existing_ids
-    ]
+    records_to_write = []
 
-    skipped = (
-        len(records)
-        - len(pending_records)
-    )
+    skipped_existing = 0
+    repaired_existing = 0
+
+    for source_record in records:
+
+        target_record = existing_by_id.get(
+            source_record.id
+        )
+
+        if target_record is None:
+
+            records_to_write.append(
+                source_record
+            )
+
+            continue
+
+        if existing_policy == "skip":
+
+            skipped_existing += 1
+            continue
+
+        equivalent = _records_equivalent(
+            source_record,
+            target_record,
+        )
+
+        if equivalent:
+
+            skipped_existing += 1
+            continue
+
+        if existing_policy == "error":
+
+            raise MigrationError(
+                "Resume conflict for record "
+                f"ID {source_record.id!r}: "
+                "source and target differ."
+            )
+
+        if existing_policy == "repair":
+
+            records_to_write.append(
+                source_record
+            )
+
+            repaired_existing += 1
 
     return (
-        pending_records,
-        skipped,
+        records_to_write,
+        skipped_existing,
+        repaired_existing,
     )
+
+def _records_equivalent(
+    source_record,
+    target_record,
+    *,
+    rel_tol: float = 1e-6,
+    abs_tol: float = 1e-6,
+) -> bool:
+
+    if (
+        len(source_record.vector)
+        != len(target_record.vector)
+    ):
+        return False
+
+    for source_value, target_value in zip(
+        source_record.vector,
+        target_record.vector,
+    ):
+
+        if not math.isclose(
+            float(source_value),
+            float(target_value),
+            rel_tol=rel_tol,
+            abs_tol=abs_tol,
+        ):
+            return False
+
+    if (
+        source_record.metadata
+        != target_record.metadata
+    ):
+        return False
+
+    return True
 
 def migrate_collection(
     source,
@@ -527,6 +607,7 @@ def migrate_collection(
     recreate_target: bool = False,
     dry_run: bool = False,
     resume: bool = False,
+    existing_policy: str = "skip",
 ) -> MigrationReport:
 
     if batch_size <= 0:
@@ -541,6 +622,29 @@ def migrate_collection(
         raise MigrationError(
             "resume cannot be used "
             "with recreate_target"
+        )
+
+    valid_existing_policies = {
+        "skip",
+        "repair",
+        "error",
+    }
+
+    if (
+        existing_policy
+        not in valid_existing_policies
+    ):
+        raise MigrationError(
+            "existing_policy must be one of: "
+            "skip, repair, error"
+        )
+
+    if (
+        not resume
+        and existing_policy != "skip"
+    ):
+        raise MigrationError(
+            "existing_policy requires resume"
         )
 
     if (
@@ -578,6 +682,12 @@ def migrate_collection(
             migrated=0,
             dimension=None,
             dry_run=dry_run,
+            resumed=resume,
+            existing_policy=(
+                existing_policy
+                if resume
+                else None
+            ),
         )
 
     dimension = len(
@@ -689,6 +799,7 @@ def migrate_collection(
     scanned = 0
     migrated = 0
     skipped_existing = 0
+    repaired_existing = 0
 
     for record in records:
 
@@ -711,13 +822,16 @@ def migrate_collection(
                 (
                     records_to_write,
                     skipped,
-                ) = _filter_existing_records(
+                    repaired,
+                ) = _prepare_resume_records(
                     target,
                     destination,
                     buffer,
+                    existing_policy=existing_policy,
                 )
 
                 skipped_existing += skipped
+                repaired_existing += repaired
 
             if records_to_write:
 
@@ -741,13 +855,16 @@ def migrate_collection(
             (
                 records_to_write,
                 skipped,
-            ) = _filter_existing_records(
+                repaired,
+            ) = _prepare_resume_records(
                 target,
                 destination,
                 buffer,
+                existing_policy=existing_policy,
             )
 
             skipped_existing += skipped
+            repaired_existing += repaired
 
         if records_to_write:
 
@@ -769,6 +886,12 @@ def migrate_collection(
         dry_run=False,
         resumed=resume,
         skipped_existing=skipped_existing,
+        repaired_existing=repaired_existing,
+        existing_policy=(
+            existing_policy
+            if resume
+            else None
+        ),
     )
 
 def verify_migration(

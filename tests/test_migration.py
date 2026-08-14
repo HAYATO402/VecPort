@@ -1,4 +1,8 @@
+import pytest
+
 from vecport import VectorRecord
+
+from vecport.core.errors import MigrationError
 
 from vecport.core.migration import (
     migrate_collection,
@@ -80,14 +84,22 @@ class FakeDriver:
         records,
     ):
 
-        self.records.setdefault(
+        stored_records = self.records.setdefault(
             collection,
             [],
         )
 
-        self.records[
-            collection
-        ].extend(records)
+        records_by_id = {
+            record.id: record
+            for record in stored_records
+        }
+
+        for record in records:
+            records_by_id[record.id] = record
+
+        self.records[collection] = list(
+            records_by_id.values()
+        )
 
     def scan(
         self,
@@ -670,3 +682,181 @@ def test_plan_detects_target_incompatibility():
     assert plan.ready is False
 
     assert target.write_calls == 0
+
+def test_migration_resume_repairs_mismatch():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[
+                    1.0,
+                    0.0,
+                    0.0,
+                ],
+                metadata={
+                    "version": "new",
+                },
+            ),
+        ],
+    )
+
+    target.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    target.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[
+                    0.0,
+                    1.0,
+                    0.0,
+                ],
+                metadata={
+                    "version": "old",
+                },
+            ),
+        ],
+    )
+
+    report = migrate_collection(
+        source,
+        target,
+        collection="documents",
+        resume=True,
+        existing_policy="repair",
+    )
+
+    assert report.migrated == 1
+    assert report.repaired_existing == 1
+    assert report.skipped_existing == 0
+    assert report.existing_policy == "repair"
+
+    result = target.get(
+        "documents",
+        ["1"],
+    )
+
+    assert len(result) == 1
+
+    assert result[0].vector == [
+        1.0,
+        0.0,
+        0.0,
+    ]
+
+    assert result[0].metadata == {
+        "version": "new",
+    }
+
+def test_migration_resume_repair_skips_matching():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    record = VectorRecord(
+        id="1",
+        vector=[
+            1.0,
+            0.0,
+            0.0,
+        ],
+        metadata={
+            "version": "same",
+        },
+    )
+
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    target.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    source.upsert(
+        "documents",
+        [record],
+    )
+
+    target.upsert(
+        "documents",
+        [record],
+    )
+
+    report = migrate_collection(
+        source,
+        target,
+        collection="documents",
+        resume=True,
+        existing_policy="repair",
+    )
+
+    assert report.migrated == 0
+    assert report.repaired_existing == 0
+    assert report.skipped_existing == 1
+    assert report.existing_policy == "repair"
+
+def test_migration_resume_errors_on_mismatch():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    target.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={},
+            ),
+        ],
+    )
+
+    target.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[0.0, 1.0, 0.0],
+                metadata={},
+            ),
+        ],
+    )
+
+    with pytest.raises(
+        MigrationError,
+        match="Resume conflict",
+    ):
+        migrate_collection(
+            source,
+            target,
+            collection="documents",
+            resume=True,
+            existing_policy="error",
+        )
