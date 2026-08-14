@@ -18,6 +18,9 @@ class MigrationReport:
 
     dry_run: bool
 
+    resumed: bool = False
+    skipped_existing: int = 0
+
 from itertools import chain
 
 from vecport.core.errors import (
@@ -478,6 +481,42 @@ def plan_migration(
         ready=ready,
     )
 
+def _filter_existing_records(
+    target,
+    collection: str,
+    records,
+):
+    ids = [
+        record.id
+        for record in records
+    ]
+
+    existing_records = target.get(
+        collection,
+        ids,
+    )
+
+    existing_ids = {
+        record.id
+        for record in existing_records
+    }
+
+    pending_records = [
+        record
+        for record in records
+        if record.id not in existing_ids
+    ]
+
+    skipped = (
+        len(records)
+        - len(pending_records)
+    )
+
+    return (
+        pending_records,
+        skipped,
+    )
+
 def migrate_collection(
     source,
     target,
@@ -487,11 +526,30 @@ def migrate_collection(
     batch_size: int = 100,
     recreate_target: bool = False,
     dry_run: bool = False,
+    resume: bool = False,
 ) -> MigrationReport:
 
     if batch_size <= 0:
         raise MigrationError(
             "batch_size must be greater than 0"
+        )
+
+    if (
+        resume
+        and recreate_target
+    ):
+        raise MigrationError(
+            "resume cannot be used "
+            "with recreate_target"
+        )
+
+    if (
+        resume
+        and dry_run
+    ):
+        raise MigrationError(
+            "resume cannot be used "
+            "with dry_run"
         )
 
     destination = (
@@ -562,20 +620,75 @@ def migrate_collection(
             dry_run=True,
         )
 
-    if recreate_target:
-
-        target.delete_collection(
+    target_info = (
+        target.collection_info(
             destination
         )
-
-    target.create_collection_from_info(
-        destination,
-        creation_info,
     )
+
+    if resume:
+
+        if target_info.exists is None:
+            raise MigrationError(
+                "Resume requires target "
+                "collection existence "
+                "to be detectable."
+            )
+
+        if target_info.exists is True:
+
+            dimension_ok = (
+                _target_dimension_compatible(
+                    dimension,
+                    target_info,
+                )
+            )
+
+            metric_ok = (
+                _distance_metric_compatible(
+                    source_info,
+                    target_info,
+                )
+            )
+
+            if dimension_ok is False:
+                raise MigrationError(
+                    "Cannot resume migration: "
+                    "target dimension differs "
+                    "from source."
+                )
+
+            if metric_ok is False:
+                raise MigrationError(
+                    "Cannot resume migration: "
+                    "target distance metric "
+                    "differs from source."
+                )
+
+    if resume:
+
+        if target_info.exists is False:
+            target.create_collection_from_info(
+                destination,
+                creation_info,
+            )
+
+    else:
+
+        if recreate_target:
+            target.delete_collection(
+                destination
+            )
+
+        target.create_collection_from_info(
+            destination,
+            creation_info,
+        )
 
     buffer = []
     scanned = 0
     migrated = 0
+    skipped_existing = 0
 
     for record in records:
 
@@ -591,23 +704,61 @@ def migrate_collection(
 
         if len(buffer) >= batch_size:
 
-            target.upsert(
-                destination,
-                buffer,
-            )
+            records_to_write = buffer
 
-            migrated += len(buffer)
+            if resume:
+
+                (
+                    records_to_write,
+                    skipped,
+                ) = _filter_existing_records(
+                    target,
+                    destination,
+                    buffer,
+                )
+
+                skipped_existing += skipped
+
+            if records_to_write:
+
+                target.upsert(
+                    destination,
+                    records_to_write,
+                )
+
+                migrated += len(
+                    records_to_write
+                )
 
             buffer = []
 
     if buffer:
 
-        target.upsert(
-            destination,
-            buffer,
-        )
+        records_to_write = buffer
 
-        migrated += len(buffer)
+        if resume:
+
+            (
+                records_to_write,
+                skipped,
+            ) = _filter_existing_records(
+                target,
+                destination,
+                buffer,
+            )
+
+            skipped_existing += skipped
+
+        if records_to_write:
+
+            target.upsert(
+                destination,
+                records_to_write,
+            )
+
+            migrated += len(
+                records_to_write
+            )
 
     return MigrationReport(
         source_collection=collection,
@@ -616,6 +767,8 @@ def migrate_collection(
         migrated=migrated,
         dimension=dimension,
         dry_run=False,
+        resumed=resume,
+        skipped_existing=skipped_existing,
     )
 
 def verify_migration(
@@ -781,3 +934,126 @@ class VerificationReport:
     vectors_ok: bool
     metadata_ok: bool
     passed: bool
+
+def test_migration_resume_skips_existing():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={"value": 1},
+            ),
+            VectorRecord(
+                id="2",
+                vector=[0.0, 1.0, 0.0],
+                metadata={"value": 2},
+            ),
+        ],
+    )
+
+    target.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    target.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={"value": 1},
+            ),
+        ],
+    )
+
+    report = migrate_collection(
+        source,
+        target,
+        collection="documents",
+        resume=True,
+    )
+
+    assert report.scanned == 2
+    assert report.migrated == 1
+
+    assert (
+        report.skipped_existing
+        == 1
+    )
+
+    assert report.resumed is True
+
+    records = target.scan(
+        "documents"
+    )
+
+    assert len(
+        list(records)
+    ) == 2
+
+def test_migration_resume_rejects_dimension_mismatch():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[
+                    1.0,
+                    0.0,
+                    0.0,
+                ],
+                metadata={},
+            ),
+        ],
+    )
+
+    target.create_collection(
+        "documents",
+        dimension=2,
+    )
+
+    with pytest.raises(
+        MigrationError
+    ):
+        migrate_collection(
+            source,
+            target,
+            collection="documents",
+            resume=True,
+        )
+
+def test_migration_resume_rejects_recreate():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    with pytest.raises(
+        MigrationError
+    ):
+        migrate_collection(
+            source,
+            target,
+            collection="documents",
+            resume=True,
+            recreate_target=True,
+        )

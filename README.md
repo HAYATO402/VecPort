@@ -488,6 +488,29 @@ Compatibility checks currently include:
 
 A `WARN` indicates that the source driver supports a feature that the target driver does not support. Capability warnings do not necessarily block migration because the source collection may not use that feature.
 
+### Resume an interrupted migration
+
+VecPort can resume a migration by skipping records that already exist in the target collection.
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?url=http://localhost:6333" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --target-collection documents_copy \
+  --resume
+```
+
+Resume mode:
+
+- checks whether the target collection already exists
+- verifies known dimension and distance-metric compatibility
+- checks record IDs in each batch
+- skips records already present in the target
+- writes only missing records
+
+`--resume` cannot be combined with `--recreate-target` or `--dry-run`.
+
 #### Collection compatibility
 
 Migration plans also inspect collection-level configuration.
