@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 from vecport.core.models import (
     Capabilities,
+    CollectionInfo,
     SearchResult,
     VectorRecord,
 )
@@ -16,6 +17,23 @@ class VectorDatabase(ABC):
         dimension: int,
     ) -> None:
         pass
+
+    def create_collection_from_info(
+        self,
+        name: str,
+        info: CollectionInfo,
+    ) -> None:
+
+        if info.dimension is None:
+            raise ValueError(
+                "Collection dimension "
+                "is required."
+            )
+
+        self.create_collection(
+            name,
+            info.dimension,
+        )
 
     @abstractmethod
     def delete_collection(
@@ -63,3 +81,12 @@ class VectorDatabase(ABC):
         self,
     ) -> Capabilities:
         pass
+
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        return CollectionInfo(
+            name=name
+        )

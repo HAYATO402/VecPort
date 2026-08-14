@@ -488,6 +488,39 @@ Compatibility checks currently include:
 
 A `WARN` indicates that the source driver supports a feature that the target driver does not support. Capability warnings do not necessarily block migration because the source collection may not use that feature.
 
+#### Collection compatibility
+
+Migration plans also inspect collection-level configuration.
+
+VecPort currently checks:
+
+- vector dimension
+- distance metric
+- target collection existence
+- source and target index type
+
+Example:
+
+```text
+Collection information
+
+Source dimension: 128
+Source distance metric: cosine
+Source index type: HNSW
+
+Target exists: YES
+Target dimension: 128
+Target distance metric: cosine
+Target index type: AUTOINDEX
+
+Target dimension compatibility: OK
+Distance metric compatibility: OK
+```
+
+A known dimension or distance-metric mismatch causes the migration plan to report `NOT READY`.
+
+Index types are reported for visibility but do not currently block migration because index implementations differ between vector databases.
+
 #### Configuration validation
 
 VecPort validates YAML configuration before executing a command.

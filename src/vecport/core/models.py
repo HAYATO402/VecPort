@@ -28,4 +28,18 @@ class Capabilities:
     named_vectors: bool = False
 
 FilterValue = dict[str, Any]
+
+@dataclass(frozen=True)
+class CollectionInfo:
+    name: str
+
+    exists: bool | None = None
+
+    dimension: int | None = None
+    distance_metric: str | None = None
+
+    index_type: str | None = None
+    index_params: dict[str, object] | None = None
+
+    metadata_schema: dict[str, str] | None = None
     

@@ -1,5 +1,8 @@
 import math
-from dataclasses import dataclass
+from dataclasses import (
+    dataclass,
+    replace,
+)
 
 
 @dataclass(frozen=True)
@@ -19,6 +22,10 @@ from itertools import chain
 
 from vecport.core.errors import (
     MigrationError,
+)
+
+from vecport.core.models import (
+    CollectionInfo,
 )
 
 @dataclass(frozen=True)
@@ -45,6 +52,12 @@ class MigrationPlan:
 
     capability_gaps: tuple[str, ...]
     compatibility: tuple[CompatibilityCheck, ...]
+
+    source_info: CollectionInfo
+    target_info: CollectionInfo
+
+    target_dimension_ok: bool | None
+    distance_metric_ok: bool | None
 
     ready: bool
 
@@ -259,6 +272,44 @@ def _migration_capability_gaps(
         gaps
     )
 
+def _target_dimension_compatible(
+    source_dimension: int | None,
+    target_info: CollectionInfo,
+) -> bool | None:
+
+    if target_info.exists is not True:
+        return None
+
+    if (
+        source_dimension is None
+        or target_info.dimension is None
+    ):
+        return None
+
+    return (
+        source_dimension
+        == target_info.dimension
+    )
+
+def _distance_metric_compatible(
+    source_info: CollectionInfo,
+    target_info: CollectionInfo,
+) -> bool | None:
+
+    if target_info.exists is not True:
+        return None
+
+    if (
+        source_info.distance_metric is None
+        or target_info.distance_metric is None
+    ):
+        return None
+
+    return (
+        source_info.distance_metric
+        == target_info.distance_metric
+    )
+
 def plan_migration(
     source,
     target,
@@ -290,6 +341,18 @@ def plan_migration(
         _build_compatibility_checks(
             source_capabilities,
             target_capabilities,
+        )
+    )
+
+    source_info = (
+        source.collection_info(
+            source_collection
+        )
+    )
+
+    target_info = (
+        target.collection_info(
+            destination
         )
     )
 
@@ -328,6 +391,15 @@ def plan_migration(
             ),
             capability_gaps=capability_gaps,
             compatibility=compatibility,
+            source_info=source_info,
+            target_info=target_info,
+            target_dimension_ok=None,
+            distance_metric_ok=(
+                _distance_metric_compatible(
+                    source_info,
+                    target_info,
+                )
+            ),
             ready=False,
         )
 
@@ -366,10 +438,26 @@ def plan_migration(
         )
     )
 
+    target_dimension_ok = (
+        _target_dimension_compatible(
+            dimension,
+            target_info,
+        )
+    )
+
+    distance_metric_ok = (
+        _distance_metric_compatible(
+            source_info,
+            target_info,
+        )
+    )
+
     ready = (
         source_count > 0
         and dimensions_ok
         and dense_vector_ok
+        and target_dimension_ok is not False
+        and distance_metric_ok is not False
     )
 
     return MigrationPlan(
@@ -383,6 +471,10 @@ def plan_migration(
         dense_vector_ok=dense_vector_ok,
         capability_gaps=capability_gaps,
         compatibility=compatibility,
+        source_info=source_info,
+        target_info=target_info,
+        target_dimension_ok=target_dimension_ok,
+        distance_metric_ok=distance_metric_ok,
         ready=ready,
     )
 
@@ -434,6 +526,21 @@ def migrate_collection(
         first_record.vector
     )
 
+    source_info = (
+        source.collection_info(
+            collection
+        )
+    )
+
+    creation_info = replace(
+        source_info,
+        name=destination,
+        dimension=(
+            source_info.dimension
+            or dimension
+        ),
+    )
+
     records = chain(
         [first_record],
         source_records,
@@ -461,9 +568,9 @@ def migrate_collection(
             destination
         )
 
-    target.create_collection(
+    target.create_collection_from_info(
         destination,
-        dimension=dimension,
+        creation_info,
     )
 
     buffer = []

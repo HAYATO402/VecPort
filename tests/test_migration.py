@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from vecport.core.models import (
     Capabilities,
+    CollectionInfo,
     VectorRecord,
 )
 
@@ -35,6 +36,43 @@ class FakeDriver:
 
         self.dimension = dimension
         self.records[collection] = []
+
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        if name not in self.records:
+            return CollectionInfo(
+                name=name,
+                exists=False,
+            )
+
+        return CollectionInfo(
+            name=name,
+            exists=True,
+            dimension=self.dimension,
+            distance_metric="cosine",
+            index_type=None,
+            index_params=None,
+            metadata_schema=None,
+        )
+
+    def create_collection_from_info(
+        self,
+        name: str,
+        info: CollectionInfo,
+    ) -> None:
+
+        if info.dimension is None:
+            raise ValueError(
+                "Collection dimension is required."
+            )
+
+        self.create_collection(
+            name,
+            info.dimension,
+        )
 
     def upsert(
         self,
@@ -169,6 +207,34 @@ class PlanSourceDatabase:
             named_vectors=False,
         )
 
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        if not self.records:
+            return CollectionInfo(
+                name=name,
+                exists=True,
+                dimension=None,
+                distance_metric="cosine",
+                index_type="HNSW",
+                index_params=None,
+                metadata_schema=None,
+            )
+
+        return CollectionInfo(
+            name=name,
+            exists=True,
+            dimension=len(
+                self.records[0].vector
+            ),
+            distance_metric="cosine",
+            index_type="HNSW",
+            index_params=None,
+            metadata_schema=None,
+        )
+
 def test_plan_migration():
 
     records = [
@@ -230,6 +296,36 @@ def test_plan_migration():
     )
 
     assert target.write_calls == 0
+
+    assert (
+        plan.source_info.exists
+        is True
+    )
+
+    assert (
+        plan.source_info.dimension
+        == 3
+    )
+
+    assert (
+        plan.source_info.distance_metric
+        == "cosine"
+    )
+
+    assert (
+        plan.target_info.exists
+        is False
+    )
+
+    assert (
+        plan.target_dimension_ok
+        is None
+    )
+
+    assert (
+        plan.distance_metric_ok
+        is None
+    )
 
 def test_migration_dry_run():
 
@@ -451,4 +547,126 @@ def test_plan_migration():
     )
 
     # PlanではTargetに書き込んではいけない
+    assert target.write_calls == 0
+
+class ExistingCompatibleTarget(
+    PlanTargetDatabase
+):
+
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        return CollectionInfo(
+            name=name,
+            exists=True,
+            dimension=3,
+            distance_metric="cosine",
+            index_type="AUTOINDEX",
+            index_params=None,
+            metadata_schema=None,
+        )
+
+def test_plan_existing_target_is_compatible():
+
+    records = [
+        SimpleNamespace(
+            id="1",
+            vector=[
+                0.1,
+                0.2,
+                0.3,
+            ],
+            metadata={},
+        )
+    ]
+
+    source = PlanSourceDatabase(
+        records
+    )
+
+    target = (
+        ExistingCompatibleTarget()
+    )
+
+    plan = plan_migration(
+        source,
+        target,
+        source_collection="source",
+        target_collection="target",
+    )
+
+    assert (
+        plan.target_dimension_ok
+        is True
+    )
+
+    assert (
+        plan.distance_metric_ok
+        is True
+    )
+
+    assert plan.ready is True
+
+    assert target.write_calls == 0
+
+class IncompatibleTarget(
+    PlanTargetDatabase
+):
+
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        return CollectionInfo(
+            name=name,
+            exists=True,
+            dimension=384,
+            distance_metric="dot",
+            index_type="AUTOINDEX",
+            index_params=None,
+            metadata_schema=None,
+        )
+
+def test_plan_detects_target_incompatibility():
+
+    records = [
+        SimpleNamespace(
+            id="1",
+            vector=[
+                0.1,
+                0.2,
+                0.3,
+            ],
+            metadata={},
+        )
+    ]
+
+    source = PlanSourceDatabase(
+        records
+    )
+
+    target = IncompatibleTarget()
+
+    plan = plan_migration(
+        source,
+        target,
+        source_collection="source",
+        target_collection="target",
+    )
+
+    assert (
+        plan.target_dimension_ok
+        is False
+    )
+
+    assert (
+        plan.distance_metric_ok
+        is False
+    )
+
+    assert plan.ready is False
+
     assert target.write_calls == 0

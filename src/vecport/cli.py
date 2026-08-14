@@ -569,6 +569,105 @@ def main():
 
                 print()
 
+                print("Collection information")
+                print()
+
+                print(
+                    "Source dimension: "
+                    f"{plan.source_info.dimension}"
+                )
+
+                print(
+                    "Source distance metric: "
+                    f"{plan.source_info.distance_metric or 'UNKNOWN'}"
+                )
+
+                print(
+                    "Source index type: "
+                    f"{plan.source_info.index_type or 'UNKNOWN'}"
+                )
+
+                print()
+
+                print(
+                    "Target exists: "
+                    + (
+                        "YES"
+                        if plan.target_info.exists is True
+                        else (
+                            "NO"
+                            if plan.target_info.exists is False
+                            else "UNKNOWN"
+                        )
+                    )
+                )
+
+                print(
+                    "Target dimension: "
+                    + (
+                        str(
+                            plan.target_info.dimension
+                        )
+                        if plan.target_info.dimension
+                        is not None
+                        else "N/A"
+                    )
+                )
+
+                print(
+                    "Target distance metric: "
+                    f"{plan.target_info.distance_metric or 'N/A'}"
+                )
+
+                print(
+                    "Target index type: "
+                    f"{plan.target_info.index_type or 'N/A'}"
+                )
+
+                print()
+
+                if (
+                    plan.target_dimension_ok
+                    is True
+                ):
+                    dimension_status = "OK"
+
+                elif (
+                    plan.target_dimension_ok
+                    is False
+                ):
+                    dimension_status = "WARN"
+
+                else:
+                    dimension_status = "N/A"
+
+                print(
+                    "Target dimension compatibility: "
+                    f"{dimension_status}"
+                )
+
+                if (
+                    plan.distance_metric_ok
+                    is True
+                ):
+                    metric_status = "OK"
+
+                elif (
+                    plan.distance_metric_ok
+                    is False
+                ):
+                    metric_status = "WARN"
+
+                else:
+                    metric_status = "N/A"
+
+                print(
+                    "Distance metric compatibility: "
+                    f"{metric_status}"
+                )
+
+                print()
+
                 print("Compatibility")
                 print()
 
