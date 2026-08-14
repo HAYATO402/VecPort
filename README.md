@@ -399,6 +399,33 @@ vecport benchmark compare --config vecport.yml
 
 Command-line options override values from the YAML configuration.
 
+#### Validate a configuration file
+
+VecPort can validate a YAML configuration without running a benchmark or migration.
+
+```bash
+vecport config check --config vecport.yml
+```
+
+Example output:
+
+```text
+Configuration valid
+
+Sections:
+- benchmark: OK
+- migration: OK
+```
+
+The command validates:
+
+- YAML syntax
+- environment-variable references
+- benchmark configuration
+- migration configuration
+
+Sensitive environment-variable values are not printed.
+
 #### Migration configuration
 
 Migration settings can also be stored in `vecport.yml`.

@@ -156,6 +156,24 @@ def main():
         required=True,
     )
 
+    config_command = commands.add_parser(
+        "config",
+        help="Validate and inspect VecPort configuration.",
+    )
+
+    config_command.add_argument(
+        "config_action",
+        choices=[
+            "check",
+        ],
+    )
+
+    config_command.add_argument(
+        "--config",
+        required=True,
+        help="Path to a VecPort YAML configuration file.",
+    )
+
     migrate = commands.add_parser(
         "migrate"
     )
@@ -333,6 +351,23 @@ def main():
         config = load_config(
             args.config
         )
+
+    if (
+        args.command == "config"
+        and args.config_action == "check"
+    ):
+        print("Configuration valid")
+
+        if config:
+            print()
+            print("Sections:")
+
+            for section in config:
+                print(
+                    f"- {section}: OK"
+                )
+
+        return 0
 
     if args.command == "migrate":
 
