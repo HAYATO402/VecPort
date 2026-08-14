@@ -1,6 +1,7 @@
 import pytest
 
 from vecport.core.config import (
+    ConfigError,
     load_config,
 )
 
@@ -156,6 +157,95 @@ service:
     with pytest.raises(
         ValueError,
         match="VECPORT_MISSING_SECRET",
+    ):
+        load_config(
+            str(path)
+        )
+
+def test_invalid_dimension(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+benchmark:
+  dimension: -1
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="dimension",
+    ):
+        load_config(
+            str(path)
+        )
+
+def test_invalid_top_k(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+benchmark:
+  top_k: 0
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="top_k",
+    ):
+        load_config(
+            str(path)
+        )
+
+def test_invalid_format(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+benchmark:
+  format: xml
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="format",
+    ):
+        load_config(
+            str(path)
+        )
+        
+def test_invalid_target(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+benchmark:
+  targets:
+    - label: qdrant
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="targets",
     ):
         load_config(
             str(path)
