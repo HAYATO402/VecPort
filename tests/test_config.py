@@ -250,3 +250,84 @@ benchmark:
         load_config(
             str(path)
         )
+
+def test_valid_migration_config(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+migration:
+  from: "vecport://qdrant?url=http://localhost:6333"
+  to: "vecport://milvus?uri=http://localhost:19530"
+  collection: documents
+  target_collection: documents_migrated
+  batch_size: 500
+  recreate_target: true
+  dry_run: false
+  verify: true
+  format: json
+  output: reports/migration.json
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(
+        str(path)
+    )
+
+    assert (
+        config["migration"]["batch_size"]
+        == 500
+    )
+
+    assert (
+        config["migration"]["verify"]
+        is True
+    )
+
+def test_invalid_migration_batch_size(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+migration:
+  batch_size: 0
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="batch_size",
+    ):
+        load_config(
+            str(path)
+        )
+
+def test_invalid_migration_verify(
+    tmp_path,
+):
+
+    path = tmp_path / "vecport.yml"
+
+    path.write_text(
+        """
+migration:
+  verify: yes-please
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        ConfigError,
+        match="verify",
+    ):
+        load_config(
+            str(path)
+        )

@@ -399,6 +399,32 @@ vecport benchmark compare --config vecport.yml
 
 Command-line options override values from the YAML configuration.
 
+#### Migration configuration
+
+Migration settings can also be stored in `vecport.yml`.
+
+```yaml
+migration:
+  from: "vecport://qdrant?url=http://localhost:6333"
+  to: "vecport://milvus?uri=http://localhost:19530"
+  collection: documents
+  target_collection: documents_migrated
+  batch_size: 500
+  recreate_target: true
+  dry_run: false
+  verify: true
+  format: json
+  output: reports/migration.json
+```
+
+Run the migration with:
+
+```bash
+vecport migrate --config vecport.yml
+```
+
+Command-line options override values defined in the YAML configuration.
+
 #### Configuration validation
 
 VecPort validates YAML configuration before executing a command.
