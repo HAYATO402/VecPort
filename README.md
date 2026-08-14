@@ -399,6 +399,22 @@ vecport benchmark compare --config vecport.yml
 
 Command-line options override values from the YAML configuration.
 
+#### Configuration validation
+
+VecPort validates YAML configuration before executing a command.
+
+Invalid values such as negative dimensions, unsupported report formats, or malformed benchmark targets produce a configuration error before connecting to a database.
+
+For example:
+
+```yaml
+benchmark:
+  dimension: 128
+  top_k: 10
+  iterations: 100
+  warmup: 10
+  format: json
+
 ### Environment Variables and Secrets
 
 Sensitive values such as API keys should not be stored directly in `vecport.yml`.
