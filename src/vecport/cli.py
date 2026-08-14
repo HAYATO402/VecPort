@@ -261,6 +261,21 @@ def main():
         ),
     )
 
+    migrate.add_argument(
+        "--existing-policy",
+        choices=[
+            "skip",
+            "repair",
+            "error",
+        ],
+        default=None,
+        help=(
+            "How resume handles IDs already "
+            "present in the target: "
+            "skip, repair, or error."
+        ),
+    )
+
     benchmark = commands.add_parser(
         "benchmark",
         help="Benchmark vector search performance",
@@ -458,6 +473,14 @@ def main():
             )
         )
 
+        existing_policy = (
+            args.existing_policy
+            if args.existing_policy is not None
+            else migration_config.get(
+                "existing_policy",
+                "skip",
+            )
+        )
 
         verify = (
             args.verify
@@ -500,6 +523,14 @@ def main():
             parser.error(
                 "--resume cannot be used "
                 "with --dry-run"
+            )
+
+        if (
+            args.existing_policy is not None
+            and not resume
+        ):
+            parser.error(
+                "--existing-policy requires --resume"
             )
 
         if not source_url:
@@ -780,6 +811,7 @@ def main():
                 recreate_target=recreate_target,
                 dry_run=dry_run,
                 resume=resume,
+                existing_policy=existing_policy,
             )
 
             verification = None
@@ -802,8 +834,18 @@ def main():
             if report.resumed:
 
                 print(
+                    "Existing policy: "
+                    f"{report.existing_policy}"
+                )
+
+                print(
                     "Skipped existing: "
                     f"{report.skipped_existing}"
+                )
+
+                print(
+                    "Repaired existing: "
+                    f"{report.repaired_existing}"
                 )
 
             print(

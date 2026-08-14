@@ -28,5 +28,7 @@ migration:
   recreate_target: true
   dry_run: false
   verify: true
+  resume: false
+  existing_policy: skip
   format: json
   output: reports/migration.json

@@ -511,6 +511,28 @@ Resume mode:
 
 `--resume` cannot be combined with `--recreate-target` or `--dry-run`.
 
+#### Existing record policies
+
+Resume mode can control how records that already exist in the target are handled.
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?url=http://localhost:6333" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --target-collection documents_copy \
+  --resume \
+  --existing-policy repair
+```
+
+Available policies:
+
+- `skip` — skip any ID already present in the target
+- `repair` — skip matching records and overwrite records whose vectors or metadata differ
+- `error` — stop the migration when an existing record differs from the source
+
+The default policy is `skip` for backward compatibility.
+
 #### Collection compatibility
 
 Migration plans also inspect collection-level configuration.
