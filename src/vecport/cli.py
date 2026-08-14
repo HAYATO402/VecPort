@@ -250,6 +250,17 @@ def main():
         help="Load migration settings from a YAML file.",
     )
 
+    migrate.add_argument(
+        "--resume",
+        action="store_true",
+        default=None,
+        help=(
+            "Resume a migration by skipping "
+            "records already present in the "
+            "target collection."
+        ),
+    )
+
     benchmark = commands.add_parser(
         "benchmark",
         help="Benchmark vector search performance",
@@ -438,6 +449,16 @@ def main():
             )
         )
 
+        resume = (
+            args.resume
+            if args.resume is not None
+            else migration_config.get(
+                "resume",
+                False,
+            )
+        )
+
+
         verify = (
             args.verify
             if args.verify is not None
@@ -462,6 +483,24 @@ def main():
                 "output"
             )
         )
+
+        if (
+            resume
+            and recreate_target
+        ):
+            parser.error(
+                "--resume cannot be used "
+                "with --recreate-target"
+            )
+
+        if (
+            resume
+            and dry_run
+        ):
+            parser.error(
+                "--resume cannot be used "
+                "with --dry-run"
+            )
 
         if not source_url:
             parser.error(
@@ -740,6 +779,7 @@ def main():
                 batch_size=batch_size,
                 recreate_target=recreate_target,
                 dry_run=dry_run,
+                resume=resume,
             )
 
             verification = None
@@ -757,6 +797,17 @@ def main():
             )
             print(
                 f"Migrated: {report.migrated}"
+            )
+
+            if report.resumed:
+
+                print(
+                    "Skipped existing: "
+                    f"{report.skipped_existing}"
+                )
+
+            print(
+                f"Resume: {report.resumed}"
             )
 
 
