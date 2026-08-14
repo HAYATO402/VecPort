@@ -569,6 +569,37 @@ def main():
 
                 print()
 
+                print("Compatibility")
+                print()
+
+                for check in plan.compatibility:
+
+                    source_value = (
+                        "YES"
+                        if check.source_supported
+                        else "NO"
+                    )
+
+                    target_value = (
+                        "YES"
+                        if check.target_supported
+                        else "NO"
+                    )
+
+                    print(
+                        f"{check.name}: "
+                        f"{check.status} "
+                        f"(source={source_value}, "
+                        f"target={target_value})"
+                    )
+
+                    if check.detail:
+                        print(
+                            f"  {check.detail}"
+                        )
+
+                print()
+
                 print(
                     "Driver capability gaps:"
                 )

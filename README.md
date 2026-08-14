@@ -474,6 +474,20 @@ The migration plan reports information such as:
 
 Plan mode does not write data to the target database.
 
+Migration plan mode also compares driver capabilities before migration.
+
+Compatibility checks currently include:
+
+- dense vector support
+- metadata filtering
+- sparse vector support
+- hybrid search
+- namespaces
+- named vectors
+- filter operators
+
+A `WARN` indicates that the source driver supports a feature that the target driver does not support. Capability warnings do not necessarily block migration because the source collection may not use that feature.
+
 #### Configuration validation
 
 VecPort validates YAML configuration before executing a command.

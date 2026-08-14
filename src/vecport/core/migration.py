@@ -22,6 +22,14 @@ from vecport.core.errors import (
 )
 
 @dataclass(frozen=True)
+class CompatibilityCheck:
+    name: str
+    source_supported: bool
+    target_supported: bool
+    status: str
+    detail: str | None = None
+
+@dataclass(frozen=True)
 class MigrationPlan:
     source_collection: str
     target_collection: str
@@ -36,8 +44,143 @@ class MigrationPlan:
     dense_vector_ok: bool
 
     capability_gaps: tuple[str, ...]
+    compatibility: tuple[CompatibilityCheck, ...]
 
     ready: bool
+
+def _compatibility_status(
+    source_supported: bool,
+    target_supported: bool,
+) -> str:
+
+    if (
+        source_supported
+        and target_supported
+    ):
+        return "OK"
+
+    if (
+        source_supported
+        and not target_supported
+    ):
+        return "WARN"
+
+    return "N/A"
+
+def _build_compatibility_checks(
+    source_capabilities,
+    target_capabilities,
+) -> tuple[CompatibilityCheck, ...]:
+
+    checks = []
+
+    capability_fields = (
+        (
+            "dense_vector",
+            "Dense vectors",
+        ),
+        (
+            "metadata_filter",
+            "Metadata filters",
+        ),
+        (
+            "sparse_vector",
+            "Sparse vectors",
+        ),
+        (
+            "hybrid_search",
+            "Hybrid search",
+        ),
+        (
+            "namespaces",
+            "Namespaces",
+        ),
+        (
+            "named_vectors",
+            "Named vectors",
+        ),
+    )
+
+    for attribute, label in capability_fields:
+
+        source_supported = getattr(
+            source_capabilities,
+            attribute,
+        )
+
+        target_supported = getattr(
+            target_capabilities,
+            attribute,
+        )
+
+        status = _compatibility_status(
+            source_supported,
+            target_supported,
+        )
+
+        detail = None
+
+        if status == "WARN":
+            detail = (
+                "Supported by source driver "
+                "but not target driver."
+            )
+
+        checks.append(
+            CompatibilityCheck(
+                name=label,
+                source_supported=source_supported,
+                target_supported=target_supported,
+                status=status,
+                detail=detail,
+            )
+        )
+
+    source_operators = set(
+        source_capabilities.filter_operators
+    )
+
+    target_operators = set(
+        target_capabilities.filter_operators
+    )
+
+    missing_operators = sorted(
+        source_operators
+        - target_operators
+    )
+
+    if missing_operators:
+
+        operator_status = "WARN"
+
+        operator_detail = (
+            "Missing on target: "
+            + ", ".join(
+                missing_operators
+            )
+        )
+
+    else:
+        operator_status = "OK"
+        operator_detail = None
+
+    checks.append(
+        CompatibilityCheck(
+            name="Filter operators",
+            source_supported=bool(
+                source_operators
+            ),
+            target_supported=bool(
+                target_operators
+            ),
+            status=operator_status,
+            detail=operator_detail,
+        )
+    )
+
+    return tuple(
+        checks
+    )
 
 
 def _migration_capability_gaps(
@@ -143,6 +286,13 @@ def plan_migration(
         target.capabilities()
     )
 
+    compatibility = (
+        _build_compatibility_checks(
+            source_capabilities,
+            target_capabilities,
+        )
+    )
+
     source_records = iter(
         source.scan(
             source_collection,
@@ -177,6 +327,7 @@ def plan_migration(
                 and target_capabilities.dense_vector
             ),
             capability_gaps=capability_gaps,
+            compatibility=compatibility,
             ready=False,
         )
 
@@ -231,6 +382,7 @@ def plan_migration(
         dimensions_ok=dimensions_ok,
         dense_vector_ok=dense_vector_ok,
         capability_gaps=capability_gaps,
+        compatibility=compatibility,
         ready=ready,
     )
 

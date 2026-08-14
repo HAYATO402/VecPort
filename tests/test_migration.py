@@ -2,9 +2,16 @@ from vecport import VectorRecord
 
 from vecport.core.migration import (
     migrate_collection,
+    plan_migration,
     verify_migration,
 )
 
+from types import SimpleNamespace
+
+from vecport.core.models import (
+    Capabilities,
+    VectorRecord,
+)
 
 class FakeDriver:
 
@@ -74,49 +81,155 @@ class FakeDriver:
             if record.id in wanted
         ]
 
+class PlanTargetDatabase(FakeDriver):
 
-def test_migrate_collection():
+    def __init__(self):
+        super().__init__()
+        self.write_calls = 0
 
-    source = FakeDriver()
-    target = FakeDriver()
+    def capabilities(
+        self,
+    ):
+        return Capabilities(
+            dense_vector=True,
+            metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
+            sparse_vector=True,
+            hybrid_search=True,
+            namespaces=False,
+            named_vectors=False,
+        )
 
-    source.create_collection(
-        "documents",
-        dimension=3,
+    def delete_collection(
+        self,
+        *args,
+        **kwargs,
+    ):
+        self.write_calls += 1
+
+    def create_collection(
+        self,
+        *args,
+        **kwargs,
+    ):
+        self.write_calls += 1
+
+    def upsert(
+        self,
+        *args,
+        **kwargs,
+    ):
+        self.write_calls += 1
+
+class PlanSourceDatabase:
+
+    def __init__(
+        self,
+        records,
+    ):
+        self.records = records
+
+    def scan(
+        self,
+        collection,
+        batch_size=100,
+    ):
+        yield from self.records
+
+    def capabilities(
+        self,
+    ):
+        return Capabilities(
+            dense_vector=True,
+            metadata_filter=True,
+            filter_operators=(
+                "$eq",
+                "$ne",
+                "$gt",
+                "$gte",
+                "$lt",
+                "$lte",
+                "$in",
+                "$and",
+                "$or",
+            ),
+            sparse_vector=True,
+            hybrid_search=True,
+            namespaces=False,
+            named_vectors=False,
+        )
+
+def test_plan_migration():
+
+    records = [
+        SimpleNamespace(
+            id=str(index),
+            vector=[
+                0.1,
+                0.2,
+                0.3,
+            ],
+            metadata={},
+        )
+        for index in range(10)
+    ]
+
+    source = PlanSourceDatabase(
+        records
     )
 
-    source.upsert(
-        "documents",
-        [
-            VectorRecord(
-                id="1",
-                vector=[1.0, 0.0, 0.0],
-                metadata={"type": "AI"},
-            ),
-            VectorRecord(
-                id="2",
-                vector=[0.9, 0.1, 0.0],
-                metadata={"type": "Finance"},
-            ),
-        ],
-    )
+    target = PlanTargetDatabase()
 
-    report = migrate_collection(
+    plan = plan_migration(
         source,
         target,
-        collection="documents",
-        batch_size=1,
+        source_collection="source",
+        target_collection="target",
+        batch_size=4,
     )
 
-    assert report.scanned == 2
-    assert report.migrated == 2
-    assert report.dimension == 3
+    assert plan.source_count == 10
+    assert plan.dimension == 3
+    assert plan.batch_size == 4
+    assert plan.estimated_batches == 3
 
-    assert len(
-        target.records[
-            "documents"
-        ]
-    ) == 2
+    assert plan.dimensions_ok is True
+    assert plan.dense_vector_ok is True
+    assert plan.ready is True
+
+    assert len(plan.compatibility) == 7
+
+    checks = {
+        check.name: check
+        for check in plan.compatibility
+    }
+
+    assert (
+        checks["Dense vectors"].status
+        == "OK"
+    )
+
+    assert (
+        checks["Metadata filters"].status
+        == "OK"
+    )
+
+    assert (
+        checks["Namespaces"].status
+        == "N/A"
+    )
+
+    assert target.write_calls == 0
 
 def test_migration_dry_run():
 
@@ -275,3 +388,67 @@ def test_verify_migration():
 
         assert report.metadata_ok is False
         assert report.passed is False
+
+def test_plan_migration():
+
+    records = [
+        SimpleNamespace(
+            id=str(index),
+            vector=[
+                0.1,
+                0.2,
+                0.3,
+            ],
+            metadata={},
+        )
+        for index in range(10)
+    ]
+
+    source = PlanSourceDatabase(
+        records
+    )
+
+    target = PlanTargetDatabase()
+
+    plan = plan_migration(
+        source,
+        target,
+        source_collection="source",
+        target_collection="target",
+        batch_size=4,
+    )
+
+    assert plan.source_count == 10
+    assert plan.dimension == 3
+    assert plan.batch_size == 4
+    assert plan.estimated_batches == 3
+
+    assert plan.dimensions_ok is True
+    assert plan.dense_vector_ok is True
+    assert plan.ready is True
+
+    # Compatibility Matrix
+    assert len(plan.compatibility) == 7
+
+    checks = {
+        check.name: check
+        for check in plan.compatibility
+    }
+
+    assert (
+        checks["Dense vectors"].status
+        == "OK"
+    )
+
+    assert (
+        checks["Metadata filters"].status
+        == "OK"
+    )
+
+    assert (
+        checks["Namespaces"].status
+        == "N/A"
+    )
+
+    # PlanではTargetに書き込んではいけない
+    assert target.write_calls == 0
