@@ -18,3 +18,15 @@ benchmark:
   warmup: 10
   format: json
   output: benchmarks/100k-128-config.json
+
+migration:
+  from: "vecport://qdrant?url=http://localhost:6333"
+  to: "vecport://milvus?uri=http://localhost:19530"
+  collection: documents
+  target_collection: documents_migrated
+  batch_size: 500
+  recreate_target: true
+  dry_run: false
+  verify: true
+  format: json
+  output: reports/migration.json

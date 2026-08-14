@@ -163,18 +163,15 @@ def main():
     migrate.add_argument(
         "--from",
         dest="source_url",
-        required=True,
     )
 
     migrate.add_argument(
         "--to",
         dest="target_url",
-        required=True,
     )
 
     migrate.add_argument(
         "--collection",
-        required=True,
     )
 
     migrate.add_argument(
@@ -184,22 +181,25 @@ def main():
     migrate.add_argument(
         "--batch-size",
         type=int,
-        default=100,
+        default=None,
     )
 
     migrate.add_argument(
         "--recreate-target",
         action="store_true",
+        default=None,
     )
 
     migrate.add_argument(
         "--dry-run",
         action="store_true",
+        default=None,
     )
 
     migrate.add_argument(
         "--verify",
         action="store_true",
+        default=None,
         help=(
             "Verify IDs, vectors, and metadata "
             "after migration"
@@ -217,8 +217,13 @@ def main():
             "json",
             "csv",
         ],
-        default="json",
+        default=None,
         help="Migration report format.",
+    )
+
+    migrate.add_argument(
+        "--config",
+        help="Load migration settings from a YAML file.",
     )
 
     benchmark = commands.add_parser(
@@ -329,29 +334,128 @@ def main():
             args.config
         )
 
-    if (
-        args.command == "migrate"
-        and args.dry_run
-        and args.verify
-    ):
-        parser.error(
-            "--verify cannot be used with --dry-run"
-        )
-
     if args.command == "migrate":
 
+        migration_config = config.get(
+            "migration",
+            {},
+        )
+
+        source_url = (
+            args.source_url
+            or migration_config.get(
+                "from"
+            )
+        )
+
+        target_url = (
+            args.target_url
+            or migration_config.get(
+                "to"
+            )
+        )
+
+        collection = (
+            args.collection
+            or migration_config.get(
+                "collection"
+            )
+        )
+
+        target_collection = (
+            args.target_collection
+            or migration_config.get(
+                "target_collection"
+            )
+            or collection
+        )
+
+        batch_size = (
+            args.batch_size
+            if args.batch_size is not None
+            else migration_config.get(
+                "batch_size",
+                500,
+            )
+        )
+
+        recreate_target = (
+            args.recreate_target
+            if args.recreate_target is not None
+            else migration_config.get(
+                "recreate_target",
+                False,
+            )
+        )
+
+        dry_run = (
+            args.dry_run
+            if args.dry_run is not None
+            else migration_config.get(
+                "dry_run",
+                False,
+            )
+        )
+
+        verify = (
+            args.verify
+            if args.verify is not None
+            else migration_config.get(
+                "verify",
+                False,
+            )
+        )
+
+        output_format = (
+            args.format
+            if args.format is not None
+            else migration_config.get(
+                "format",
+                "json",
+            )
+        )
+
+        output = (
+            args.output
+            or migration_config.get(
+                "output"
+            )
+        )
+
+        if not source_url:
+            parser.error(
+                "Migration source is required. "
+                "Use --from or --config."
+            )
+
+        if not target_url:
+            parser.error(
+                "Migration target is required. "
+                "Use --to or --config."
+            )
+
+        if not collection:
+            parser.error(
+                "Migration collection is required. "
+                "Use --collection or --config."
+            )
+
+        if batch_size <= 0:
+            parser.error(
+                "--batch-size must be greater than 0"
+            )
+
+        if dry_run and verify:
+            parser.error(
+                "--verify cannot be used with --dry-run"
+            )
+
         source = connect_url(
-            args.source_url,
-            **_connection_overrides(
-                "SOURCE"
-            ),
+            source_url
         )
 
         target = connect_url(
-            args.target_url,
-            **_connection_overrides(
-                "TARGET"
-            ),
+            target_url
         )
 
         try:
@@ -359,11 +463,11 @@ def main():
             report = migrate_collection(
                 source,
                 target,
-                collection=args.collection,
-                target_collection=args.target_collection,
-                batch_size=args.batch_size,
-                recreate_target=args.recreate_target,
-                dry_run=args.dry_run,
+                collection=collection,
+                target_collection=target_collection,
+                batch_size=batch_size,
+                recreate_target=recreate_target,
+                dry_run=dry_run,
             )
 
             verification = None
@@ -384,17 +488,14 @@ def main():
             )
 
 
-            if args.verify:
+            if verify:
 
                 verification = verify_migration(
                     source,
                     target,
-                    source_collection=args.collection,
-                    target_collection=(
-                        args.target_collection
-                        or args.collection
-                    ),
-                    batch_size=args.batch_size,
+                    source_collection=collection,
+                    target_collection=target_collection,
+                    batch_size=batch_size,
                 )
 
                 print()

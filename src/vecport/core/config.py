@@ -291,6 +291,161 @@ def _validate_benchmark_config(
                 "must be a non-empty string"
             )
 
+def _validate_migration_config(
+    migration: Any,
+) -> None:
+
+    if not isinstance(
+        migration,
+        dict,
+    ):
+        raise ConfigError(
+            "'migration' must be a mapping"
+        )
+
+    source = migration.get(
+        "from"
+    )
+
+    if source is not None:
+        if (
+            not isinstance(
+                source,
+                str,
+            )
+            or not source
+        ):
+            raise ConfigError(
+                "'migration.from' "
+                "must be a non-empty string"
+            )
+
+    target = migration.get(
+        "to"
+    )
+
+    if target is not None:
+        if (
+            not isinstance(
+                target,
+                str,
+            )
+            or not target
+        ):
+            raise ConfigError(
+                "'migration.to' "
+                "must be a non-empty string"
+            )
+
+    collection = migration.get(
+        "collection"
+    )
+
+    if collection is not None:
+        if (
+            not isinstance(
+                collection,
+                str,
+            )
+            or not collection
+        ):
+            raise ConfigError(
+                "'migration.collection' "
+                "must be a non-empty string"
+            )
+
+    target_collection = migration.get(
+        "target_collection"
+    )
+
+    if target_collection is not None:
+        if (
+            not isinstance(
+                target_collection,
+                str,
+            )
+            or not target_collection
+        ):
+            raise ConfigError(
+                "'migration.target_collection' "
+                "must be a non-empty string"
+            )
+
+    batch_size = migration.get(
+        "batch_size"
+    )
+
+    if batch_size is not None:
+        if (
+            not isinstance(
+                batch_size,
+                int,
+            )
+            or isinstance(
+                batch_size,
+                bool,
+            )
+            or batch_size <= 0
+        ):
+            raise ConfigError(
+                "'migration.batch_size' "
+                "must be a positive integer"
+            )
+
+    for key in (
+        "recreate_target",
+        "dry_run",
+        "verify",
+    ):
+
+        value = migration.get(
+            key
+        )
+
+        if (
+            value is not None
+            and not isinstance(
+                value,
+                bool,
+            )
+        ):
+            raise ConfigError(
+                f"'migration.{key}' "
+                "must be a boolean"
+            )
+    output_format = migration.get(
+        "format"
+    )
+
+    if (
+        output_format is not None
+        and output_format not in {
+            "json",
+            "csv",
+        }
+    ):
+        raise ConfigError(
+            "'migration.format' "
+            "must be 'json' or 'csv'"
+        )
+
+    output = migration.get(
+        "output"
+    )
+
+    if output is not None:
+        if (
+            not isinstance(
+                output,
+                str,
+            )
+            or not output
+        ):
+            raise ConfigError(
+                "'migration.output' "
+                "must be a non-empty string"
+            )
+
 
 def validate_config(
     config: dict[str, Any],
@@ -303,6 +458,15 @@ def validate_config(
     if benchmark is not None:
         _validate_benchmark_config(
             benchmark
+        )
+
+    migration = config.get(
+        "migration"
+    )
+
+    if migration is not None:
+        _validate_migration_config(
+            migration
         )
 
 
