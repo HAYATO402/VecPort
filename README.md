@@ -452,6 +452,28 @@ vecport migrate --config vecport.yml
 
 Command-line options override values defined in the YAML configuration.
 
+### Plan a migration
+
+VecPort can inspect a migration before writing any data.
+
+```bash
+vecport migrate \
+  --plan \
+  --from "vecport://qdrant?url=http://localhost:6333" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents
+```
+
+The migration plan reports information such as:
+
+- source record count
+- vector dimension
+- batch size
+- estimated number of batches
+- migration readiness
+
+Plan mode does not write data to the target database.
+
 #### Configuration validation
 
 VecPort validates YAML configuration before executing a command.
