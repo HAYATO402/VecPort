@@ -6,6 +6,7 @@ from pymilvus import (
 from vecport.core.interface import VectorDatabase
 from vecport.core.models import (
     Capabilities,
+    CollectionInfo,
     SearchResult,
     VectorRecord,
 )
@@ -217,6 +218,180 @@ class MilvusDriver(VectorDatabase):
             named_vectors=False,
         )
 
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        if not self.client.has_collection(
+            collection_name=name
+        ):
+            return CollectionInfo(
+                name=name,
+                exists=False,
+            )
+
+        description = (
+            self.client.describe_collection(
+                collection_name=name
+            )
+        )
+
+        fields = description.get(
+            "fields",
+            [],
+        )
+
+        vector_field = next(
+            (
+                field
+                for field in fields
+                if field.get("name")
+                == "vector"
+            ),
+            None,
+        )
+
+        dimension = None
+
+        if vector_field is not None:
+
+            params = vector_field.get(
+                "params",
+                {},
+            )
+
+            raw_dimension = params.get(
+                "dim"
+            )
+
+            if raw_dimension is not None:
+                dimension = int(
+                    raw_dimension
+                )
+
+        index_type = None
+        distance_metric = None
+        index_params_result = None
+
+        index_names = (
+            self.client.list_indexes(
+                collection_name=name
+            )
+        )
+
+        for index_name in index_names:
+
+            index_info = (
+                self.client.describe_index(
+                    collection_name=name,
+                    index_name=index_name,
+                )
+            )
+
+            if (
+                index_info.get(
+                    "field_name"
+                )
+                != "vector"
+            ):
+                continue
+
+            index_type = (
+                index_info.get(
+                    "index_type"
+                )
+            )
+
+            raw_metric = (
+                index_info.get(
+                    "metric_type"
+                )
+            )
+
+            if raw_metric is not None:
+
+                normalized = str(
+                    raw_metric
+                ).lower()
+
+                metric_aliases = {
+                    "cosine": "cosine",
+                    "ip": "dot",
+                    "l2": "l2",
+                }
+
+                distance_metric = (
+                    metric_aliases.get(
+                        normalized,
+                        normalized,
+                    )
+                )
+
+            excluded = {
+                "field_name",
+                "index_name",
+                "index_type",
+                "metric_type",
+            }
+
+            remaining = {
+                key: value
+                for key, value
+                in index_info.items()
+                if key not in excluded
+            }
+
+            index_params_result = (
+                remaining
+                or None
+            )
+
+            break
+
+        metadata_schema = {}
+
+        if description.get(
+            "enable_dynamic_field",
+            False,
+        ):
+            metadata_schema[
+                "__dynamic__"
+            ] = "enabled"
+
+        for field in fields:
+
+            field_name = field.get(
+                "name"
+            )
+
+            if field_name in (
+                "id",
+                "vector",
+            ):
+                continue
+
+            metadata_schema[
+                field_name
+            ] = str(
+                field.get(
+                    "type"
+                )
+            )
+
+        return CollectionInfo(
+            name=name,
+            exists=True,
+            dimension=dimension,
+            distance_metric=distance_metric,
+            index_type=index_type,
+            index_params=index_params_result,
+            metadata_schema=(
+                metadata_schema
+                or None
+            ),
+        )
+
     def _quote_filter_value(
         self,
         value,
@@ -362,3 +537,75 @@ class MilvusDriver(VectorDatabase):
 
         finally:
             iterator.close()
+
+    def create_collection_from_info(
+        self,
+        name: str,
+        info: CollectionInfo,
+    ) -> None:
+
+        if info.dimension is None:
+            raise ValueError(
+                "Collection dimension "
+                "is required."
+            )
+
+        if self.client.has_collection(
+            collection_name=name
+        ):
+            return
+
+        metric = (
+            info.distance_metric
+            or "cosine"
+        )
+
+        metrics = {
+            "cosine": "COSINE",
+            "dot": "IP",
+            "l2": "L2",
+        }
+
+        if metric not in metrics:
+            raise ValueError(
+                "Unsupported Milvus "
+                f"distance metric: {metric}"
+            )
+
+        schema = MilvusClient.create_schema(
+            auto_id=False,
+            enable_dynamic_field=True,
+        )
+
+        schema.add_field(
+            field_name="id",
+            datatype=DataType.VARCHAR,
+            is_primary=True,
+            max_length=512,
+        )
+
+        schema.add_field(
+            field_name="vector",
+            datatype=DataType.FLOAT_VECTOR,
+            dim=info.dimension,
+        )
+
+        index_params = (
+            self.client
+            .prepare_index_params()
+        )
+
+        index_params.add_index(
+            field_name="vector",
+            index_type="AUTOINDEX",
+            metric_type=metrics[
+                metric
+            ],
+        )
+
+        self.client.create_collection(
+            collection_name=name,
+            schema=schema,
+            index_params=index_params,
+            consistency_level="Strong",
+        )

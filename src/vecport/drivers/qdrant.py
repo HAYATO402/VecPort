@@ -16,6 +16,7 @@ from vecport.core.models import (
     Capabilities,
     SearchResult,
     VectorRecord,
+    CollectionInfo,
 )
 
 from vecport.core.filters import validate_filter
@@ -65,6 +66,45 @@ class QdrantDriver(VectorDatabase):
             vectors_config=VectorParams(
                 size=dimension,
                 distance=Distance.COSINE,
+            ),
+        )
+
+    def create_collection_from_info(
+        self,
+        name: str,
+        info: CollectionInfo,
+    ) -> None:
+
+        if info.dimension is None:
+            raise ValueError(
+                "Collection dimension "
+                "is required."
+            )
+
+        metric = (
+            info.distance_metric
+            or "cosine"
+        )
+
+        distances = {
+            "cosine": Distance.COSINE,
+            "dot": Distance.DOT,
+            "l2": Distance.EUCLID,
+        }
+
+        if metric not in distances:
+            raise ValueError(
+                "Unsupported Qdrant "
+                f"distance metric: {metric}"
+            )
+
+        self.client.create_collection(
+            collection_name=name,
+            vectors_config=VectorParams(
+                size=info.dimension,
+                distance=distances[
+                    metric
+                ],
             ),
         )
 
@@ -310,6 +350,131 @@ class QdrantDriver(VectorDatabase):
             hybrid_search=True,
             namespaces=False,
             named_vectors=False,
+        )
+
+    def collection_info(
+        self,
+        name: str,
+    ) -> CollectionInfo:
+
+        collections = (
+            self.client
+            .get_collections()
+            .collections
+        )
+
+        exists = any(
+            collection.name == name
+            for collection in collections
+        )
+
+        if not exists:
+            return CollectionInfo(
+                name=name,
+                exists=False,
+            )
+
+        info = self.client.get_collection(
+            collection_name=name
+        )
+
+        vectors = (
+            info.config
+            .params
+            .vectors
+        )
+
+        # 現在のVecPort Qdrant Driverは
+        # unnamed single dense vectorを前提としている
+        if isinstance(vectors, dict):
+            return CollectionInfo(
+                name=name,
+                exists=True,
+            )
+
+        dimension = getattr(
+            vectors,
+            "size",
+            None,
+        )
+
+        raw_distance = getattr(
+            vectors,
+            "distance",
+            None,
+        )
+
+        distance_metric = None
+
+        if raw_distance is not None:
+
+            raw_value = getattr(
+                raw_distance,
+                "value",
+                raw_distance,
+            )
+
+            normalized = str(
+                raw_value
+            ).lower()
+
+            distance_aliases = {
+                "cosine": "cosine",
+                "dot": "dot",
+                "euclid": "l2",
+                "euclidean": "l2",
+                "manhattan": "manhattan",
+            }
+
+            distance_metric = (
+                distance_aliases.get(
+                    normalized,
+                    normalized,
+                )
+            )
+
+        hnsw = getattr(
+            info.config,
+            "hnsw_config",
+            None,
+        )
+
+        index_params = {}
+
+        if hnsw is not None:
+
+            for field in (
+                "m",
+                "ef_construct",
+                "full_scan_threshold",
+                "max_indexing_threads",
+                "on_disk",
+            ):
+
+                value = getattr(
+                    hnsw,
+                    field,
+                    None,
+                )
+
+                if value is not None:
+                    index_params[field] = value
+
+        return CollectionInfo(
+            name=name,
+            exists=True,
+            dimension=dimension,
+            distance_metric=distance_metric,
+            index_type=(
+                "HNSW"
+                if hnsw is not None
+                else None
+            ),
+            index_params=(
+                index_params
+                or None
+            ),
+            metadata_schema=None,
         )
 
     def scan(
