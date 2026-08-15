@@ -62,17 +62,21 @@ VecPort is designed for teams that want to:
 
 ## Installation
 
-VecPort is currently under active development.
+VecPort requires Python 3.10 or newer.
 
-Clone the repository:
+After the package is published to PyPI, install the release with:
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+pip install vecport
+```
+
+For local development, clone the repository and install it in editable mode:
+
+```bash
+git clone https://github.com/HAYATO402/vecport.git
 cd vecport
 pip install -e .
 ```
-
-PyPI distribution is planned for a future release.
 
 ## Quick Start
 
