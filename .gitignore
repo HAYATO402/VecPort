@@ -1,37 +1,42 @@
-# Milvus runtime data
-volumes/
-
 # Python
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environment
 .venv/
 venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
 
-# Pytest
+# Build
+build/
+dist/
+
+# Tests / coverage
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Environment variables / secrets
 .env
 .env.*
 !.env.example
+*.pem
+*.key
 
-# Milvus / Docker runtime data
+# Local VecPort config
+vecport.yml
+!examples/vecport.yml
+
+# Local reports / logs
+reports/
+*.log
+
+# Local database data
+.vecport-qdrant/
+milvus_data/
 volumes/
-
-# Local databases
 *.db
 
-# OS files
+# OS / editor
 .DS_Store
 Thumbs.db
-
-# Python package metadata
-*.egg-info/
-
-# Local Qdrant data
-.vecport-qdrant/
-
-vecport.yml
+.vscode/
+.idea/

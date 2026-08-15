@@ -1,19 +1,35 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "vecport"
-version = "0.0.1"
-description = "A vendor-neutral connectivity layer for vector databases."
+version = "0.1.0"
+description = "One interface for vector databases."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["vector-database", "migration", "qdrant", "milvus", "pinecone", "weaviate", "pgvector"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 dependencies = [
     "qdrant-client>=1.9",
     "pymilvus>=2.4",
-    "psycopg>=3.1",
+    "psycopg[binary]>=3.1",
+    "pgvector>=0.3",
+    "pinecone>=5.0",
+    "weaviate-client>=4.0",
     "PyYAML>=6.0",
 ]
 
@@ -37,3 +53,8 @@ where = ["src"]
 
 [project.scripts]
 vecport = "vecport.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/HAYATO402/vecport"
+Repository = "https://github.com/HAYATO402/vecport"
+Issues = "https://github.com/HAYATO402/vecport/issues"
