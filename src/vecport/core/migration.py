@@ -1,8 +1,11 @@
 import math
+import time
+from collections.abc import Callable
 from dataclasses import (
     dataclass,
     replace,
 )
+from itertools import chain
 
 
 @dataclass(frozen=True)
@@ -23,7 +26,18 @@ class MigrationReport:
     repaired_existing: int = 0
     existing_policy: str | None = None
 
-from itertools import chain
+@dataclass(frozen=True)
+class MigrationProgress:
+    scanned: int
+    migrated: int
+    skipped_existing: int
+    repaired_existing: int
+    batches_completed: int
+    total_records: int | None
+    percent: float | None
+    elapsed_seconds: float
+    records_per_second: float
+    eta_seconds: float | None
 
 from vecport.core.errors import (
     MigrationError,
@@ -597,6 +611,70 @@ def _records_equivalent(
 
     return True
 
+def _build_migration_progress(
+    *,
+    scanned: int,
+    migrated: int,
+    skipped_existing: int,
+    repaired_existing: int,
+    batches_completed: int,
+    total_records: int | None,
+    started_at: float,
+) -> MigrationProgress:
+
+    elapsed_seconds = max(
+        time.perf_counter() - started_at,
+        0.0,
+    )
+
+    records_per_second = (
+        scanned / elapsed_seconds
+        if elapsed_seconds > 0
+        else 0.0
+    )
+
+    percent = None
+
+    if (
+        total_records is not None
+        and total_records > 0
+    ):
+        percent = min(
+            scanned
+            / total_records
+            * 100.0,
+            100.0,
+        )
+
+    eta_seconds = None
+
+    if (
+        total_records is not None
+        and records_per_second > 0
+    ):
+        remaining_records = max(
+            total_records - scanned,
+            0,
+        )
+
+        eta_seconds = (
+            remaining_records
+            / records_per_second
+        )
+
+    return MigrationProgress(
+        scanned=scanned,
+        migrated=migrated,
+        skipped_existing=skipped_existing,
+        repaired_existing=repaired_existing,
+        batches_completed=batches_completed,
+        total_records=total_records,
+        percent=percent,
+        elapsed_seconds=elapsed_seconds,
+        records_per_second=records_per_second,
+        eta_seconds=eta_seconds,
+    )
+
 def migrate_collection(
     source,
     target,
@@ -608,6 +686,11 @@ def migrate_collection(
     dry_run: bool = False,
     resume: bool = False,
     existing_policy: str = "skip",
+    total_records: int | None = None,
+    progress_callback: (
+        Callable[[MigrationProgress], None]
+        | None
+    ) = None,
 ) -> MigrationReport:
 
     if batch_size <= 0:
@@ -655,6 +738,8 @@ def migrate_collection(
             "resume cannot be used "
             "with dry_run"
         )
+
+    started_at = time.perf_counter()
 
     destination = (
         target_collection
@@ -800,6 +885,24 @@ def migrate_collection(
     migrated = 0
     skipped_existing = 0
     repaired_existing = 0
+    batches_completed = 0
+
+    def emit_progress() -> None:
+
+        if progress_callback is None:
+            return
+
+        progress_callback(
+            _build_migration_progress(
+                scanned=scanned,
+                migrated=migrated,
+                skipped_existing=skipped_existing,
+                repaired_existing=repaired_existing,
+                batches_completed=batches_completed,
+                total_records=total_records,
+                started_at=started_at,
+            )
+        )
 
     for record in records:
 
@@ -844,6 +947,9 @@ def migrate_collection(
                     records_to_write
                 )
 
+            batches_completed += 1
+            emit_progress()
+
             buffer = []
 
     if buffer:
@@ -876,6 +982,9 @@ def migrate_collection(
             migrated += len(
                 records_to_write
             )
+
+        batches_completed += 1
+        emit_progress()
 
     return MigrationReport(
         source_collection=collection,

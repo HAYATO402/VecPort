@@ -860,3 +860,69 @@ def test_migration_resume_errors_on_mismatch():
             resume=True,
             existing_policy="error",
         )
+
+def test_migration_reports_progress():
+
+    source = FakeDriver()
+    target = FakeDriver()
+
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
+
+    records = [
+        VectorRecord(
+            id=str(index),
+            vector=[
+                1.0,
+                0.0,
+                0.0,
+            ],
+            metadata={},
+        )
+        for index in range(5)
+    ]
+
+    source.upsert(
+        "documents",
+        records,
+    )
+
+    events = []
+
+    migrate_collection(
+        source,
+        target,
+        collection="documents",
+        batch_size=2,
+        total_records=5,
+        progress_callback=events.append,
+    )
+
+    assert len(events) == 3
+
+    assert [
+        event.scanned
+        for event in events
+    ] == [
+        2,
+        4,
+        5,
+    ]
+
+    final = events[-1]
+
+    assert final.total_records == 5
+    assert final.percent == 100.0
+    assert final.batches_completed == 3
+
+    assert (
+        final.records_per_second
+        >= 0
+    )
+
+    assert (
+        final.eta_seconds
+        is not None
+    )
