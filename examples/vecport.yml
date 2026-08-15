@@ -30,5 +30,6 @@ migration:
   verify: true
   resume: false
   existing_policy: skip
+  progress: false
   format: json
   output: reports/migration.json

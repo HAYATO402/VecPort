@@ -276,6 +276,16 @@ def main():
         ),
     )
 
+    migrate.add_argument(
+        "--progress",
+        action="store_true",
+        default=None,
+        help=(
+            "Show migration progress, "
+            "processing speed, and ETA."
+        ),
+    )
+
     benchmark = commands.add_parser(
         "benchmark",
         help="Benchmark vector search performance",
@@ -479,6 +489,15 @@ def main():
             else migration_config.get(
                 "existing_policy",
                 "skip",
+            )
+        )
+
+        show_progress = (
+            args.progress
+            if args.progress is not None
+            else migration_config.get(
+                "progress",
+                False,
             )
         )
 
@@ -802,6 +821,65 @@ def main():
 
                 return 0
 
+            def print_migration_progress(
+                progress,
+            ):
+
+                total_text = (
+                    str(progress.total_records)
+                    if progress.total_records
+                    is not None
+                    else "?"
+                )
+
+                percent_text = (
+                    f"{progress.percent:.1f}%"
+                    if progress.percent
+                    is not None
+                    else "N/A"
+                )
+
+                eta_text = (
+                    f"{progress.eta_seconds:.1f}s"
+                    if progress.eta_seconds
+                    is not None
+                    else "N/A"
+                )
+
+                print(
+                    "Progress: "
+                    f"{progress.scanned}/"
+                    f"{total_text} "
+                    f"({percent_text}) "
+                    "| "
+                    f"{progress.records_per_second:.1f} records/s "
+                    "| "
+                    f"ETA {eta_text} "
+                    "| "
+                    f"Batch {progress.batches_completed}"
+                )
+
+            total_records = None
+            progress_callback = None
+
+            if show_progress:
+
+                progress_plan = plan_migration(
+                    source,
+                    target,
+                    source_collection=collection,
+                    target_collection=target_collection,
+                    batch_size=batch_size,
+                )
+
+                total_records = (
+                    progress_plan.source_count
+                )
+
+                progress_callback = (
+                    print_migration_progress
+                )
+
             report = migrate_collection(
                 source,
                 target,
@@ -812,6 +890,8 @@ def main():
                 dry_run=dry_run,
                 resume=resume,
                 existing_policy=existing_policy,
+                total_records=total_records,
+                progress_callback=progress_callback,
             )
 
             verification = None

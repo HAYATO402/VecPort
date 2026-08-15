@@ -582,6 +582,35 @@ benchmark:
   warmup: 10
   format: json
 
+### Migration progress
+
+Use `--progress` to display migration progress, throughput, and estimated remaining time.
+
+```bash
+vecport migrate \
+  --from "vecport://qdrant?url=http://localhost:6333" \
+  --to "vecport://milvus?uri=http://localhost:19530" \
+  --collection documents \
+  --target-collection documents_copy \
+  --progress
+```
+
+Example output:
+
+```text
+Progress: 2500/10000 (25.0%) | 1450.2 records/s | ETA 5.2s | Batch 5
+```
+
+Progress reporting includes:
+
+- scanned records
+- completion percentage
+- completed batches
+- records per second
+- estimated remaining time
+
+Progress reporting can also be combined with resumable migrations.
+
 ### Environment Variables and Secrets
 
 Sensitive values such as API keys should not be stored directly in `vecport.yml`.
