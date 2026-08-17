@@ -98,3 +98,23 @@ def test_benchmark_rejects_invalid_iterations():
             ],
             iterations=0,
         )
+
+
+def test_compare_benchmarks():
+    first = FakeBenchmarkDriver()
+    second = FakeBenchmarkDriver()
+
+    comparison = compare_benchmarks(
+        [
+            ("first", first),
+            ("second", second),
+        ],
+        collection="documents",
+        vector=[1.0, 0.0, 0.0],
+        iterations=3,
+        warmup=0,
+    )
+
+    assert len(comparison.reports) == 2
+    assert comparison.reports[0].label == "first"
+    assert comparison.reports[1].label == "second"

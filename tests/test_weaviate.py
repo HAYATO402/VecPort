@@ -2,9 +2,8 @@ import os
 
 import pytest
 
-from vecport import VectorRecord, connect
-
 from tests.helpers import wait_for_search
+from vecport import VectorRecord, connect
 
 
 @pytest.mark.skipif(

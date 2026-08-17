@@ -2,24 +2,19 @@ import argparse
 import os
 
 from vecport import connect_url
-
+from vecport.core.benchmark import (
+    benchmark_search,
+    compare_benchmarks,
+)
+from vecport.core.benchmark_dataset import (
+    make_benchmark_query,
+)
+from vecport.core.config import load_config
 from vecport.core.migration import (
     migrate_collection,
     plan_migration,
     verify_migration,
 )
-
-from vecport.core.benchmark import (
-    benchmark_search,
-    compare_benchmarks,
-)
-
-from vecport.core.benchmark_dataset import (
-    make_benchmark_query,
-)
-
-from vecport.core.config import load_config
-
 from vecport.core.reporting import (
     write_csv_report,
     write_json_report,

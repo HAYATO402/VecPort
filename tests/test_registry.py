@@ -1,5 +1,6 @@
 import pytest
 
+from vecport import connect
 from vecport.core.errors import (
     DriverNotFoundError,
 )
@@ -9,7 +10,6 @@ from vecport.core.registry import (
     list_drivers,
     register_driver,
 )
-from vecport import connect
 
 
 class DummyDriver:
@@ -17,8 +17,10 @@ class DummyDriver:
     def __init__(
         self,
         value=None,
+        name=None,
     ):
         self.value = value
+        self.name = name
 
 
 def test_register_driver():
@@ -83,3 +85,18 @@ def test_connect_uses_registry():
     db = connect("qdrant")
 
     assert db is not None
+
+
+def test_driver_can_receive_name_argument():
+    register_driver(
+        "driver-with-name",
+        DummyDriver,
+        replace=True,
+    )
+
+    driver = create_driver(
+        "driver-with-name",
+        name="test",
+    )
+
+    assert driver.name == "test"

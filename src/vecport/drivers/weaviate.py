@@ -1,7 +1,10 @@
 import weaviate
-from weaviate.classes.init import Auth
 from weaviate.classes.config import Configure
+from weaviate.classes.init import Auth
+from weaviate.classes.query import Filter
 
+from vecport.core.errors import UnsupportedFeatureError
+from vecport.core.filters import validate_filter
 from vecport.core.interface import VectorDatabase
 from vecport.core.models import (
     Capabilities,
@@ -9,9 +12,6 @@ from vecport.core.models import (
     VectorRecord,
 )
 
-from weaviate.classes.query import Filter
-
-from vecport.core.filters import validate_filter
 
 class WeaviateDriver(VectorDatabase):
 

@@ -1,19 +1,17 @@
 import json
+import uuid
 
 import psycopg
-import uuid
 from pgvector.psycopg import register_vector
+from psycopg import sql
 
+from vecport.core.filters import validate_filter
 from vecport.core.interface import VectorDatabase
 from vecport.core.models import (
     Capabilities,
     SearchResult,
     VectorRecord,
 )
-
-from vecport.core.filters import validate_filter
-
-from psycopg import sql
 
 
 class PgVectorDriver(VectorDatabase):
@@ -377,15 +375,13 @@ class PgVectorDriver(VectorDatabase):
             + uuid.uuid4().hex
         )
 
-        with self.conn.transaction():
+        with self.conn.transaction(), self.conn.cursor(
+            name=cursor_name
+        ) as cursor:
 
-            with self.conn.cursor(
-                name=cursor_name
-            ) as cursor:
-
-                cursor.execute(
-                    sql.SQL(
-                        """
+            cursor.execute(
+                sql.SQL(
+                    """
                         SELECT
                             id,
                             vector,
@@ -393,41 +389,41 @@ class PgVectorDriver(VectorDatabase):
                         FROM {}
                         ORDER BY id
                         """
-                    ).format(
-                        sql.Identifier(
-                            collection
-                        )
+                ).format(
+                    sql.Identifier(
+                        collection
                     )
                 )
+            )
 
-                while True:
+            while True:
 
-                    rows = cursor.fetchmany(
-                        batch_size
-                    )
+                rows = cursor.fetchmany(
+                    batch_size
+                )
 
-                    if not rows:
-                        break
+                if not rows:
+                    break
 
-                    for row in rows:
+                for row in rows:
 
-                        raw_vector = row[1]
+                    raw_vector = row[1]
 
-                        if hasattr(
-                            raw_vector,
-                            "to_list",
-                        ):
-                            vector = (
-                                raw_vector.to_list()
-                            )
-
-                        else:
-                            vector = list(
-                                raw_vector
-                            )
-
-                        yield VectorRecord(
-                            id=str(row[0]),
-                            vector=vector,
-                            metadata=row[2] or {},
+                    if hasattr(
+                        raw_vector,
+                        "to_list",
+                    ):
+                        vector = (
+                            raw_vector.to_list()
                         )
+
+                    else:
+                        vector = list(
+                            raw_vector
+                        )
+
+                    yield VectorRecord(
+                        id=str(row[0]),
+                        vector=vector,
+                        metadata=row[2] or {},
+                    )

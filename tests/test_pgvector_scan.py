@@ -1,7 +1,6 @@
 from tests.test_scan_contract import (
     run_scan_contract,
 )
-
 from vecport import connect
 
 

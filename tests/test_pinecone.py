@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from vecport import connect
 from tests.test_contract import run_vector_database_contract
+from vecport import connect
 
 
 @pytest.mark.skipif(

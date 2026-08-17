@@ -3,6 +3,7 @@ from pymilvus import (
     MilvusClient,
 )
 
+from vecport.core.filters import validate_filter
 from vecport.core.interface import VectorDatabase
 from vecport.core.models import (
     Capabilities,
@@ -10,8 +11,6 @@ from vecport.core.models import (
     SearchResult,
     VectorRecord,
 )
-
-from vecport.core.filters import validate_filter
 
 
 class MilvusDriver(VectorDatabase):

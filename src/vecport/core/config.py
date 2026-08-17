@@ -5,7 +5,6 @@ from typing import Any
 
 import yaml
 
-
 _ENV_PATTERN = re.compile(
     r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}"
 )
@@ -155,107 +154,97 @@ def _validate_benchmark_config(
         "collection"
     )
 
-    if collection is not None:
-
-        if (
-            not isinstance(
-                collection,
-                str,
-            )
-            or not collection
-        ):
-            raise ConfigError(
-                "'benchmark.collection' "
-                "must be a non-empty string"
-            )
+    if collection is not None and (
+        not isinstance(
+            collection,
+            str,
+        )
+        or not collection
+    ):
+        raise ConfigError(
+            "'benchmark.collection' "
+            "must be a non-empty string"
+        )
 
     dimension = benchmark.get(
         "dimension"
     )
 
-    if dimension is not None:
-
-        if (
-            not isinstance(
-                dimension,
-                int,
-            )
-            or isinstance(
-                dimension,
-                bool,
-            )
-            or dimension <= 0
-        ):
-            raise ConfigError(
-                "'benchmark.dimension' "
-                "must be a positive integer"
-            )
+    if dimension is not None and (
+        not isinstance(
+            dimension,
+            int,
+        )
+        or isinstance(
+            dimension,
+            bool,
+        )
+        or dimension <= 0
+    ):
+        raise ConfigError(
+            "'benchmark.dimension' "
+            "must be a positive integer"
+        )
 
     top_k = benchmark.get(
         "top_k"
     )
 
-    if top_k is not None:
-
-        if (
-            not isinstance(
-                top_k,
-                int,
-            )
-            or isinstance(
-                top_k,
-                bool,
-            )
-            or top_k <= 0
-        ):
-            raise ConfigError(
-                "'benchmark.top_k' "
-                "must be a positive integer"
-            )
+    if top_k is not None and (
+        not isinstance(
+            top_k,
+            int,
+        )
+        or isinstance(
+            top_k,
+            bool,
+        )
+        or top_k <= 0
+    ):
+        raise ConfigError(
+            "'benchmark.top_k' "
+            "must be a positive integer"
+        )
 
     iterations = benchmark.get(
         "iterations"
     )
 
-    if iterations is not None:
-
-        if (
-            not isinstance(
-                iterations,
-                int,
-            )
-            or isinstance(
-                iterations,
-                bool,
-            )
-            or iterations <= 0
-        ):
-            raise ConfigError(
-                "'benchmark.iterations' "
-                "must be a positive integer"
-            )
+    if iterations is not None and (
+        not isinstance(
+            iterations,
+            int,
+        )
+        or isinstance(
+            iterations,
+            bool,
+        )
+        or iterations <= 0
+    ):
+        raise ConfigError(
+            "'benchmark.iterations' "
+            "must be a positive integer"
+        )
 
     warmup = benchmark.get(
         "warmup"
     )
 
-    if warmup is not None:
-
-        if (
-            not isinstance(
-                warmup,
-                int,
-            )
-            or isinstance(
-                warmup,
-                bool,
-            )
-            or warmup < 0
-        ):
-            raise ConfigError(
-                "'benchmark.warmup' "
-                "must be a non-negative integer"
-            )
+    if warmup is not None and (
+        not isinstance(
+            warmup,
+            int,
+        )
+        or isinstance(
+            warmup,
+            bool,
+        )
+        or warmup < 0
+    ):
+        raise ConfigError(
+            "'benchmark.warmup' "
+            "must be a non-negative integer"
+        )
 
     output_format = benchmark.get(
         "format"
@@ -277,19 +266,17 @@ def _validate_benchmark_config(
         "output"
     )
 
-    if output is not None:
-
-        if (
-            not isinstance(
-                output,
-                str,
-            )
-            or not output
-        ):
-            raise ConfigError(
-                "'benchmark.output' "
-                "must be a non-empty string"
-            )
+    if output is not None and (
+        not isinstance(
+            output,
+            str,
+        )
+        or not output
+    ):
+        raise ConfigError(
+            "'benchmark.output' "
+            "must be a non-empty string"
+        )
 
 def _validate_migration_config(
     migration: Any,
@@ -307,90 +294,85 @@ def _validate_migration_config(
         "from"
     )
 
-    if source is not None:
-        if (
-            not isinstance(
-                source,
-                str,
-            )
-            or not source
-        ):
-            raise ConfigError(
-                "'migration.from' "
-                "must be a non-empty string"
-            )
+    if source is not None and (
+        not isinstance(
+            source,
+            str,
+        )
+        or not source
+    ):
+        raise ConfigError(
+            "'migration.from' "
+            "must be a non-empty string"
+        )
 
     target = migration.get(
         "to"
     )
 
-    if target is not None:
-        if (
-            not isinstance(
-                target,
-                str,
-            )
-            or not target
-        ):
-            raise ConfigError(
-                "'migration.to' "
-                "must be a non-empty string"
-            )
+    if target is not None and (
+        not isinstance(
+            target,
+            str,
+        )
+        or not target
+    ):
+        raise ConfigError(
+            "'migration.to' "
+            "must be a non-empty string"
+        )
 
     collection = migration.get(
         "collection"
     )
 
-    if collection is not None:
-        if (
-            not isinstance(
-                collection,
-                str,
-            )
-            or not collection
-        ):
-            raise ConfigError(
-                "'migration.collection' "
-                "must be a non-empty string"
-            )
+    if collection is not None and (
+        not isinstance(
+            collection,
+            str,
+        )
+        or not collection
+    ):
+        raise ConfigError(
+            "'migration.collection' "
+            "must be a non-empty string"
+        )
 
     target_collection = migration.get(
         "target_collection"
     )
 
-    if target_collection is not None:
-        if (
-            not isinstance(
-                target_collection,
-                str,
-            )
-            or not target_collection
-        ):
-            raise ConfigError(
-                "'migration.target_collection' "
-                "must be a non-empty string"
-            )
+    if target_collection is not None and (
+        not isinstance(
+            target_collection,
+            str,
+        )
+        or not target_collection
+    ):
+        raise ConfigError(
+            "'migration.target_collection' "
+            "must be a non-empty string"
+        )
 
     batch_size = migration.get(
         "batch_size"
     )
 
-    if batch_size is not None:
-        if (
-            not isinstance(
-                batch_size,
-                int,
-            )
-            or isinstance(
-                batch_size,
-                bool,
-            )
-            or batch_size <= 0
-        ):
-            raise ConfigError(
-                "'migration.batch_size' "
-                "must be a positive integer"
-            )
+    if batch_size is not None and (
+        not isinstance(
+            batch_size,
+            int,
+        )
+        or isinstance(
+            batch_size,
+            bool,
+        )
+        or batch_size <= 0
+    ):
+        raise ConfigError(
+            "'migration.batch_size' "
+            "must be a positive integer"
+        )
 
     for key in (
         "recreate_target",
@@ -433,18 +415,17 @@ def _validate_migration_config(
         "output"
     )
 
-    if output is not None:
-        if (
-            not isinstance(
-                output,
-                str,
-            )
-            or not output
-        ):
-            raise ConfigError(
-                "'migration.output' "
-                "must be a non-empty string"
-            )
+    if output is not None and (
+        not isinstance(
+            output,
+            str,
+        )
+        or not output
+    ):
+        raise ConfigError(
+            "'migration.output' "
+            "must be a non-empty string"
+        )
 
 
 def validate_config(
@@ -494,7 +475,7 @@ def load_config(
         data,
         dict,
     ):
-        raise ValueError(
+        raise ValueError(  # noqa: TRY004
             "Config root must be a YAML mapping"
         )
 

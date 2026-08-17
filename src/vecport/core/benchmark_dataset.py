@@ -1,11 +1,13 @@
+import logging
 import math
 import random
 import time
 import uuid
-
 from dataclasses import dataclass
 
 from vecport import VectorRecord
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -126,8 +128,12 @@ def load_benchmark_dataset(
                 collection
             )
 
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "Could not delete benchmark collection %s: %s",
+                collection,
+                exc,
+            )
 
     db.create_collection(
         collection,

@@ -1,22 +1,19 @@
+from types import SimpleNamespace
+
 import pytest
 
-from vecport import VectorRecord
-
 from vecport.core.errors import MigrationError
-
 from vecport.core.migration import (
     migrate_collection,
     plan_migration,
     verify_migration,
 )
-
-from types import SimpleNamespace
-
 from vecport.core.models import (
     Capabilities,
     CollectionInfo,
     VectorRecord,
 )
+
 
 class FakeDriver:
 
@@ -247,7 +244,7 @@ class PlanSourceDatabase:
             metadata_schema=None,
         )
 
-def test_plan_migration():
+def test_plan_migration_reports_collection_info():
 
     records = [
         SimpleNamespace(
@@ -439,63 +436,50 @@ def test_verify_migration():
     assert report.metadata_ok is True
     assert report.passed is True
 
-    def test_verify_detects_metadata_mismatch():
+def test_verify_detects_metadata_mismatch():
+    source = FakeDriver()
+    target = FakeDriver()
 
-        source = FakeDriver()
-        target = FakeDriver()
+    source.create_collection(
+        "documents",
+        dimension=3,
+    )
 
-        source.create_collection(
-            "documents",
-            dimension=3,
-        )
+    target.create_collection(
+        "documents",
+        dimension=3,
+    )
 
-        target.create_collection(
-            "documents",
-            dimension=3,
-        )
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={"category": "AI"},
+            )
+        ],
+    )
 
-        source.upsert(
-            "documents",
-            [
-                VectorRecord(
-                    id="1",
-                    vector=[
-                        1.0,
-                        0.0,
-                        0.0,
-                    ],
-                    metadata={
-                        "category": "AI",
-                    },
-                )
-            ],
-        )
+    target.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={"category": "Sports"},
+            )
+        ],
+    )
 
-        target.upsert(
-            "documents",
-            [
-                VectorRecord(
-                    id="1",
-                    vector=[
-                        1.0,
-                        0.0,
-                        0.0,
-                    ],
-                    metadata={
-                        "category": "Sports",
-                    },
-                )
-            ],
-        )
+    report = verify_migration(
+        source,
+        target,
+        source_collection="documents",
+    )
 
-        report = verify_migration(
-            source,
-            target,
-            source_collection="documents",
-        )
-
-        assert report.metadata_ok is False
-        assert report.passed is False
+    assert report.metadata_ok is False
+    assert report.passed is False
 
 def test_plan_migration():
 
@@ -926,3 +910,88 @@ def test_migration_reports_progress():
         final.eta_seconds
         is not None
     )
+
+
+def test_migration_resume_skips_existing():
+    source = FakeDriver()
+    target = FakeDriver()
+
+    source.create_collection("documents", dimension=3)
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={"value": 1},
+            ),
+            VectorRecord(
+                id="2",
+                vector=[0.0, 1.0, 0.0],
+                metadata={"value": 2},
+            ),
+        ],
+    )
+    target.create_collection("documents", dimension=3)
+    target.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={"value": 1},
+            ),
+        ],
+    )
+
+    report = migrate_collection(
+        source,
+        target,
+        collection="documents",
+        resume=True,
+    )
+
+    assert report.scanned == 2
+    assert report.migrated == 1
+    assert report.skipped_existing == 1
+    assert report.resumed is True
+    assert len(list(target.scan("documents"))) == 2
+
+
+def test_migration_resume_rejects_dimension_mismatch():
+    source = FakeDriver()
+    target = FakeDriver()
+    source.create_collection("documents", dimension=3)
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0, 0.0],
+                metadata={},
+            ),
+        ],
+    )
+    target.create_collection("documents", dimension=2)
+
+    with pytest.raises(MigrationError):
+        migrate_collection(
+            source,
+            target,
+            collection="documents",
+            resume=True,
+        )
+
+
+def test_migration_resume_rejects_recreate():
+    source = FakeDriver()
+    target = FakeDriver()
+
+    with pytest.raises(MigrationError):
+        migrate_collection(
+            source,
+            target,
+            collection="documents",
+            resume=True,
+            recreate_target=True,
+        )

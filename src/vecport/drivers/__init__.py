@@ -23,8 +23,8 @@ def connect(
 
 
 __all__ = [
-    "connect",
-    "VectorRecord",
-    "SearchResult",
     "Capabilities",
+    "SearchResult",
+    "VectorRecord",
+    "connect",
 ]
