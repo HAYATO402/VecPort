@@ -78,6 +78,58 @@ cd vecport
 pip install -e .
 ```
 
+### LangChain integration
+
+Install VecPort with LangChain support:
+
+```bash
+pip install "vecport[langchain]"
+```
+
+VecPort can be used as a LangChain vector store while keeping the underlying
+vector database behind the VecPort interface.
+
+```python
+from langchain_core.documents import Document
+
+from vecport import connect
+from vecport.integrations.langchain import VecPortVectorStore
+
+db = connect("qdrant")
+
+vector_store = VecPortVectorStore(
+    db=db,
+    collection="documents",
+    embedding=embeddings,
+)
+
+vector_store.add_documents(
+    [
+        Document(
+            page_content="VecPort provides one interface for vector databases.",
+            metadata={"category": "AI"},
+        )
+    ]
+)
+
+documents = vector_store.similarity_search(
+    "vector databases",
+    k=5,
+)
+```
+
+The adapter supports:
+
+- document insertion
+- deletion by ID
+- similarity search
+- metadata filters using the VecPort filter DSL
+- `as_retriever()` for LangChain retrieval workflows
+
+The target VecPort collection must use a vector dimension compatible with the
+configured LangChain embedding model. The application supplies its preferred
+LangChain `Embeddings` implementation.
+
 ## Quick Start
 
 ```python

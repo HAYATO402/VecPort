@@ -42,10 +42,15 @@ pinecone = [
     "pinecone"
 ]
 
+langchain = [
+    "langchain-core>=1.0,<2.0",
+]
+
 dev = [
     "pytest",
     "ruff",
-    "mypy"
+    "mypy",
+    "langchain-core>=1.0,<2.0",
 ]
 
 [tool.setuptools.packages.find]
