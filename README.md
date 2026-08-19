@@ -130,6 +130,57 @@ The target VecPort collection must use a vector dimension compatible with the
 configured LangChain embedding model. The application supplies its preferred
 LangChain `Embeddings` implementation.
 
+### LlamaIndex integration
+
+Install VecPort with LlamaIndex support:
+
+```bash
+pip install "vecport[llamaindex]"
+```
+
+Use VecPort as the vector-store layer behind LlamaIndex:
+
+```python
+from llama_index.core import StorageContext, VectorStoreIndex
+
+from vecport import connect
+from vecport.integrations.llamaindex import VecPortLlamaIndexVectorStore
+
+db = connect("qdrant")
+
+vector_store = VecPortLlamaIndexVectorStore(
+    db=db,
+    collection="documents",
+)
+storage_context = StorageContext.from_defaults(
+    vector_store=vector_store,
+)
+index = VectorStoreIndex.from_documents(
+    documents,
+    storage_context=storage_context,
+    embed_model=embed_model,
+)
+
+retriever = index.as_retriever(similarity_top_k=5)
+results = retriever.retrieve("vector databases")
+```
+
+The adapter supports:
+
+- inserting embedded LlamaIndex nodes
+- dense `VectorStoreQuery` search
+- metadata filters supported by the VecPort filter DSL
+- deletion by reference document ID
+- direct node deletion and retrieval
+- `StorageContext` integration
+- `VectorStoreIndex` retrieval
+
+The target collection must already exist with a dimension compatible with the
+configured LlamaIndex embedding model. Sparse, hybrid, MMR, NOT filters, and
+filter-based node deletion are not currently supported. Reference-document
+deletion uses the common VecPort `scan()` API and can be expensive for large
+collections.
+
 ## Quick Start
 
 ```python
