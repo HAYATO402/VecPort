@@ -1,6 +1,5 @@
 import math
 import time
-
 from dataclasses import dataclass
 
 
@@ -109,7 +108,8 @@ def benchmark_search(
 
             successes += 1
 
-        except Exception:
+        except Exception:  # noqa: BLE001
+            # Driver implementations raise backend-specific exceptions.
             failures += 1
 
         elapsed_ms = (
@@ -149,46 +149,6 @@ def benchmark_search(
             / iterations
             * 100
         ),
-    )
-
-def test_compare_benchmarks():
-
-    first = FakeBenchmarkDriver()
-    second = FakeBenchmarkDriver()
-
-    comparison = compare_benchmarks(
-        [
-            (
-                "first",
-                first,
-            ),
-            (
-                "second",
-                second,
-            ),
-        ],
-        collection="documents",
-        vector=[
-            1.0,
-            0.0,
-            0.0,
-        ],
-        iterations=3,
-        warmup=0,
-    )
-
-    assert len(
-        comparison.reports
-    ) == 2
-
-    assert (
-        comparison.reports[0].label
-        == "first"
-    )
-
-    assert (
-        comparison.reports[1].label
-        == "second"
     )
 
 def compare_benchmarks(

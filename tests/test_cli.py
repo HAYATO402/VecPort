@@ -2,6 +2,7 @@ import sys
 
 from vecport.cli import main
 
+
 def test_config_check_valid(
     tmp_path,
     monkeypatch,

@@ -3,7 +3,6 @@ from typing import Any
 
 from vecport.core.errors import DriverNotFoundError
 
-
 DriverFactory = Callable[..., Any]
 
 
@@ -80,28 +79,3 @@ def list_drivers() -> tuple[str, ...]:
     return tuple(
         sorted(_DRIVERS.keys())
     )
-
-def test_driver_can_receive_name_argument():
-
-    register_driver(
-        "driver-with-name",
-        DummyDriver,
-        replace=True,
-    )
-
-    driver = create_driver(
-        "driver-with-name",
-        name="test",
-    )
-
-    assert driver.name == "test"
-
-class DummyDriver:
-
-    def __init__(
-        self,
-        value=None,
-        name=None,
-    ):
-        self.value = value
-        self.name = name

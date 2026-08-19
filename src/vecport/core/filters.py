@@ -1,6 +1,5 @@
 from vecport.core.errors import InvalidFilterError
 
-
 SUPPORTED_FILTER_OPERATORS = {
     "$eq",
     "$ne",

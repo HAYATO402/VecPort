@@ -1,12 +1,10 @@
 import pytest
 
 from vecport import connect
-
 from vecport.core.errors import (
     DriverNotFoundError,
     InvalidFilterError,
 )
-
 from vecport.core.filters import (
     validate_filter,
 )

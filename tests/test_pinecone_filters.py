@@ -5,7 +5,6 @@ import pytest
 from tests.test_filter_contract import (
     run_filter_contract,
 )
-
 from vecport import connect
 
 

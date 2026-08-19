@@ -1,10 +1,9 @@
 import pytest
 
+from vecport.core.errors import InvalidFilterError
 from vecport.core.filters import (
     validate_filter,
 )
-
-from vecport.core.errors import InvalidFilterError
 
 
 def test_valid_eq_filter():

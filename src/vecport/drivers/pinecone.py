@@ -2,14 +2,13 @@ import time
 
 from pinecone import Pinecone, ServerlessSpec
 
+from vecport.core.filters import validate_filter
 from vecport.core.interface import VectorDatabase
 from vecport.core.models import (
     Capabilities,
     SearchResult,
     VectorRecord,
 )
-
-from vecport.core.filters import validate_filter
 
 
 class PineconeDriver(VectorDatabase):

@@ -9,6 +9,9 @@ from dataclasses import (
 )
 from itertools import chain
 
+from vecport.core.errors import MigrationError
+from vecport.core.models import CollectionInfo
+
 
 @dataclass(frozen=True)
 class MigrationReport:
@@ -41,13 +44,6 @@ class MigrationProgress:
     records_per_second: float
     eta_seconds: float | None
 
-from vecport.core.errors import (
-    MigrationError,
-)
-
-from vecport.core.models import (
-    CollectionInfo,
-)
 
 @dataclass(frozen=True)
 class CompatibilityCheck:
@@ -605,13 +601,7 @@ def _records_equivalent(
         ):
             return False
 
-    if (
-        source_record.metadata
-        != target_record.metadata
-    ):
-        return False
-
-    return True
+    return source_record.metadata == target_record.metadata
 
 def _build_migration_progress(
     *,
@@ -1168,126 +1158,3 @@ class VerificationReport:
     vectors_ok: bool
     metadata_ok: bool
     passed: bool
-
-def test_migration_resume_skips_existing():
-
-    source = FakeDriver()
-    target = FakeDriver()
-
-    source.create_collection(
-        "documents",
-        dimension=3,
-    )
-
-    source.upsert(
-        "documents",
-        [
-            VectorRecord(
-                id="1",
-                vector=[1.0, 0.0, 0.0],
-                metadata={"value": 1},
-            ),
-            VectorRecord(
-                id="2",
-                vector=[0.0, 1.0, 0.0],
-                metadata={"value": 2},
-            ),
-        ],
-    )
-
-    target.create_collection(
-        "documents",
-        dimension=3,
-    )
-
-    target.upsert(
-        "documents",
-        [
-            VectorRecord(
-                id="1",
-                vector=[1.0, 0.0, 0.0],
-                metadata={"value": 1},
-            ),
-        ],
-    )
-
-    report = migrate_collection(
-        source,
-        target,
-        collection="documents",
-        resume=True,
-    )
-
-    assert report.scanned == 2
-    assert report.migrated == 1
-
-    assert (
-        report.skipped_existing
-        == 1
-    )
-
-    assert report.resumed is True
-
-    records = target.scan(
-        "documents"
-    )
-
-    assert len(
-        list(records)
-    ) == 2
-
-def test_migration_resume_rejects_dimension_mismatch():
-
-    source = FakeDriver()
-    target = FakeDriver()
-
-    source.create_collection(
-        "documents",
-        dimension=3,
-    )
-
-    source.upsert(
-        "documents",
-        [
-            VectorRecord(
-                id="1",
-                vector=[
-                    1.0,
-                    0.0,
-                    0.0,
-                ],
-                metadata={},
-            ),
-        ],
-    )
-
-    target.create_collection(
-        "documents",
-        dimension=2,
-    )
-
-    with pytest.raises(
-        MigrationError
-    ):
-        migrate_collection(
-            source,
-            target,
-            collection="documents",
-            resume=True,
-        )
-
-def test_migration_resume_rejects_recreate():
-
-    source = FakeDriver()
-    target = FakeDriver()
-
-    with pytest.raises(
-        MigrationError
-    ):
-        migrate_collection(
-            source,
-            target,
-            collection="documents",
-            resume=True,
-            recreate_target=True,
-        )

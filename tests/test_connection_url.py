@@ -1,13 +1,12 @@
 import pytest
 
+from vecport import connect_url
 from vecport.core.connection import (
     parse_connection_url,
 )
 from vecport.core.errors import (
     InvalidConnectionURLError,
 )
-
-from vecport import connect_url
 
 
 def test_parse_qdrant_connection_url():
