@@ -756,6 +756,59 @@ vecport benchmark compare \
   --warmup 10 \
   --format json \
   --output benchmarks/100k-128.json
+```
+
+## Driver Compliance
+
+VecPort includes a driver compliance suite for validating whether a
+vector database driver follows the VecPort contract.
+
+```bash
+vecport compliance \
+  --url "vecport://qdrant"
+```
+
+The compliance suite validates:
+
+- collection creation
+- vector upsert and retrieval
+- similarity search
+- declared metadata filter behavior
+- record scanning
+- record deletion
+- temporary collection cleanup
+
+Example:
+
+```text
+VecPort Driver Compliance
+
+create_collection    PASS
+upsert_get           PASS
+search               PASS
+filter_eq            PASS
+scan                 PASS
+delete               PASS
+cleanup              PASS
+
+Compliance: PASSED
+```
+
+A JSON report can also be generated:
+
+```bash
+vecport compliance \
+  --url "vecport://qdrant" \
+  --output reports/compliance.json
+```
+
+The JSON report intentionally excludes the connection URL so credentials
+and connection details are not persisted. Compliance checks use a temporary
+collection and remove it automatically after the test unless `--no-cleanup`
+is specified.
+
+A successful compliance run exits with code `0`. A failed compliance run
+exits with code `1`.
 
 ## Extensible Driver Registry
 
