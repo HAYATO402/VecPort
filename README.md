@@ -886,6 +886,57 @@ operations, records, search, declared filters, scanning, and deletion. An
 installable reference package is available under
 `examples/plugins/vecport-example-driver`.
 
+### Create a driver plugin
+
+VecPort can generate a starter project for third-party driver authors.
+
+```bash
+vecport plugin init chroma
+```
+
+This creates:
+
+```text
+vecport-chroma/
+├── pyproject.toml
+├── README.md
+├── src/
+│   └── vecport_chroma/
+│       └── __init__.py
+└── tests/
+    └── test_driver.py
+```
+
+The generated package already includes the required `vecport.drivers`
+Python entry point. Install it during development:
+
+```bash
+python -m pip install -e .
+```
+
+Verify discovery:
+
+```bash
+vecport plugin list
+```
+
+Then implement the VecPort driver contract and validate it with:
+
+```bash
+vecport compliance --url "vecport://chroma"
+```
+
+Driver authors can import the stable public SDK from:
+
+```python
+from vecport.driver_sdk import (
+    Capabilities,
+    SearchResult,
+    VectorDatabase,
+    VectorRecord,
+)
+```
+
 > Third-party driver packages execute Python code when their driver is
 > loaded. Install plugins only from sources you trust.
 
