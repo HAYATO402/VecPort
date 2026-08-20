@@ -9,6 +9,10 @@ from vecport.core.benchmark import (
 from vecport.core.benchmark_dataset import (
     make_benchmark_query,
 )
+from vecport.core.compliance import (
+    ComplianceReport,
+    run_compliance,
+)
 from vecport.core.config import load_config
 from vecport.core.migration import (
     migrate_collection,
@@ -56,6 +60,22 @@ def _close_driver(
 
     close = getattr(
         db,
+        "close",
+        None,
+    )
+
+    if callable(close):
+        close()
+        return
+
+    connection = getattr(
+        db,
+        "conn",
+        None,
+    )
+
+    close = getattr(
+        connection,
         "close",
         None,
     )
@@ -135,6 +155,114 @@ def _parse_benchmark_target(
         )
 
     return label, url
+
+
+def _print_compliance_report(
+    report: ComplianceReport,
+) -> None:
+    print()
+    print("VecPort Driver Compliance")
+    print(
+        "Temporary collection: "
+        f"{report.collection}"
+    )
+    print()
+
+    for check in report.checks:
+        line = (
+            f"{check.name:<20} "
+            f"{check.status.upper()}"
+        )
+
+        if check.detail:
+            line += f" - {check.detail}"
+
+        print(line)
+
+    print()
+    print(
+        "Summary: "
+        f"{report.passed_count} passed, "
+        f"{report.failed_count} failed, "
+        f"{report.skipped_count} skipped"
+    )
+    print(
+        "Compliance: "
+        + (
+            "PASSED"
+            if report.passed
+            else "FAILED"
+        )
+    )
+
+
+def _compliance_payload(
+    report: ComplianceReport,
+) -> dict[str, object]:
+    return {
+        "type": "driver_compliance",
+        "collection": report.collection,
+        "passed": report.passed,
+        "summary": {
+            "passed": report.passed_count,
+            "failed": report.failed_count,
+            "skipped": report.skipped_count,
+        },
+        "checks": [
+            {
+                "name": check.name,
+                "status": check.status,
+                "detail": check.detail,
+            }
+            for check in report.checks
+        ],
+    }
+
+
+def _run_compliance_command(
+    args: argparse.Namespace,
+) -> int:
+    if args.dimension < 2:
+        print(
+            "Compliance dimension must "
+            "be at least 2."
+        )
+        return 1
+
+    db = connect_url(
+        args.url,
+        **_connection_overrides(
+            "COMPLIANCE"
+        ),
+    )
+
+    try:
+        report = run_compliance(
+            db,
+            collection_prefix=(
+                args.collection_prefix
+            ),
+            dimension=args.dimension,
+            cleanup=not args.no_cleanup,
+        )
+
+        _print_compliance_report(report)
+
+        if args.output:
+            write_json_report(
+                args.output,
+                _compliance_payload(report),
+            )
+            print()
+            print(
+                "Report written to: "
+                f"{args.output}"
+            )
+
+        return 0 if report.passed else 1
+
+    finally:
+        _close_driver(db)
 
 
 def main():
@@ -376,6 +504,59 @@ def main():
         help="Load benchmark settings from a YAML file.",
     )
 
+    compliance = commands.add_parser(
+        "compliance",
+        help=(
+            "Validate a vector database driver "
+            "against the VecPort contract."
+        ),
+    )
+
+    compliance.add_argument(
+        "--url",
+        required=True,
+        help=(
+            "VecPort connection URL for the "
+            "driver to validate."
+        ),
+    )
+
+    compliance.add_argument(
+        "--dimension",
+        type=int,
+        default=3,
+        help=(
+            "Vector dimension used by the "
+            "compliance test. Default: 3."
+        ),
+    )
+
+    compliance.add_argument(
+        "--collection-prefix",
+        default="vecport_compliance",
+        help=(
+            "Prefix for temporary compliance "
+            "collections."
+        ),
+    )
+
+    compliance.add_argument(
+        "--no-cleanup",
+        action="store_true",
+        help=(
+            "Keep the temporary compliance "
+            "collection after the test."
+        ),
+    )
+
+    compliance.add_argument(
+        "--output",
+        help=(
+            "Optional path for a JSON "
+            "compliance report."
+        ),
+    )
+
     args = parser.parse_args()
 
     config = {}
@@ -405,6 +586,9 @@ def main():
                 )
 
         return 0
+
+    if args.command == "compliance":
+        return _run_compliance_command(args)
 
     if args.command == "migrate":
 
