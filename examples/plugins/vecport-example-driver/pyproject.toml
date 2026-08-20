@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vecport-example-driver"
+version = "0.1.0"
+description = "Example third-party driver plugin for VecPort."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "vecport>=0.5.0",
+]
+
+[project.entry-points."vecport.drivers"]
+example = "vecport_example_driver:ExampleDriver"
+
+[tool.setuptools.packages.find]
+where = ["src"]

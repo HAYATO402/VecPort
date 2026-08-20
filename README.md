@@ -842,7 +842,52 @@ db = connect("milvus")
 db = connect("my-vector-db")
 ```
 
-The driver registry provides a foundation for a future VecPort driver ecosystem and third-party driver compliance tooling.
+The same registry is used by VecPort's automatic third-party plugin discovery.
+
+## Third-party Driver Plugins
+
+VecPort can automatically discover third-party vector database drivers
+installed as Python packages.
+
+```bash
+pip install vecport-example-driver
+```
+
+Once installed, a driver can be used without calling `register_driver()`
+manually.
+
+```python
+from vecport import connect
+
+db = connect("example")
+```
+
+Plugin packages register themselves using Python package entry points:
+
+```toml
+[project.entry-points."vecport.drivers"]
+example = "vecport_example_driver:ExampleDriver"
+```
+
+VecPort loads plugins lazily. An installed plugin is loaded only when its
+driver name is requested and no built-in or manually registered driver
+already exists. Conflicting plugins with the same driver name fail instead
+of being selected based on installation order.
+
+Third-party driver authors can validate their implementation with:
+
+```bash
+vecport compliance \
+  --url "vecport://example"
+```
+
+A compliant plugin should follow the VecPort driver contract for collection
+operations, records, search, declared filters, scanning, and deletion. An
+installable reference package is available under
+`examples/plugins/vecport-example-driver`.
+
+> Third-party driver packages execute Python code when their driver is
+> loaded. Install plugins only from sources you trust.
 
 ## Cross-Database Migration
 

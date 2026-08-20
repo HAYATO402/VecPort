@@ -51,11 +51,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev,langchain,llamaindex]"
 
+      - name: Install example third-party driver
+        run: |
+          python -m pip install -e examples/plugins/vecport-example-driver
+
       - name: Compile source
-        run: python -m compileall -q src
+        run: |
+          python -m compileall -q src
+          python -m compileall -q examples/plugins/vecport-example-driver/src
 
       - name: Run Ruff
-        run: python -m ruff check src tests
+        run: |
+          python -m ruff check src tests \
+            examples/plugins/vecport-example-driver/src
 
       - name: Run tests
         # Service-backed Milvus and pgvector tests run outside standard CI.
@@ -66,6 +74,13 @@ jobs:
 
       - name: Run Qdrant compliance smoke test
         run: vecport compliance --url "vecport://qdrant"
+
+      - name: Verify driver entry-point discovery
+        run: |
+          python -c "from vecport import connect; db = connect('example'); assert type(db).__name__ == 'ExampleDriver'"
+
+      - name: Run example driver compliance
+        run: vecport compliance --url "vecport://example"
 
       - name: Check installed dependencies
         run: python -m pip check
