@@ -54,13 +54,31 @@ def get_driver_factory(
         driver_name
     )
 
-    try:
-        return _DRIVERS[normalized]
+    factory = _DRIVERS.get(
+        normalized
+    )
 
-    except KeyError as exc:
-        raise DriverNotFoundError(
-            f"Unsupported VecPort driver: {normalized}"
-        ) from exc
+    if factory is not None:
+        return factory
+
+    # Import lazily so built-in and manually
+    # registered drivers never load plugins.
+    from vecport.core.plugins import (
+        load_driver_plugin,
+    )
+
+    load_driver_plugin(normalized)
+
+    factory = _DRIVERS.get(
+        normalized
+    )
+
+    if factory is not None:
+        return factory
+
+    raise DriverNotFoundError(
+        f"Unsupported VecPort driver: {normalized}"
+    )
 
 
 def create_driver(

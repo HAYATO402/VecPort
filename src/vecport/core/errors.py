@@ -18,3 +18,17 @@ class InvalidConnectionURLError(VecPortError):
 
 class MigrationError(VecPortError):
     """Raised when a VecPort migration fails."""
+
+
+class DriverPluginError(VecPortError):
+    """Base exception for driver plugin failures."""
+
+
+class DriverPluginLoadError(DriverPluginError):
+    """Raised when a driver plugin cannot be loaded."""
+
+
+class DriverPluginConflictError(
+    DriverPluginError
+):
+    """Raised when plugins use the same driver name."""
