@@ -85,6 +85,21 @@ jobs:
       - name: Check installed dependencies
         run: python -m pip check
 
+      - name: Generate plugin scaffold
+        run: |
+          vecport plugin init smoke --output /tmp/vecport-plugin-test
+
+      - name: Install generated plugin
+        run: |
+          python -m pip install --no-deps -e /tmp/vecport-plugin-test/vecport-smoke
+
+      - name: Verify generated plugin discovery
+        run: |
+          python -c "from vecport import connect; db = connect('smoke'); assert type(db).__name__ == 'SmokeDriver'"
+
+      - name: List discovered plugins
+        run: vecport plugin list
+
   package:
     name: Package build
     runs-on: ubuntu-latest

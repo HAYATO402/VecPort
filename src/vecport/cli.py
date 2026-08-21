@@ -19,6 +19,12 @@ from vecport.core.migration import (
     plan_migration,
     verify_migration,
 )
+from vecport.core.plugin_scaffold import (
+    create_driver_project,
+)
+from vecport.core.plugins import (
+    discover_driver_plugins,
+)
 from vecport.core.reporting import (
     write_csv_report,
     write_json_report,
@@ -263,6 +269,67 @@ def _run_compliance_command(
 
     finally:
         _close_driver(db)
+
+
+def _run_plugin_list_command(
+    args: argparse.Namespace,
+) -> int:
+    del args
+    plugins = discover_driver_plugins()
+
+    if not plugins:
+        print(
+            "No third-party VecPort "
+            "driver plugins discovered."
+        )
+        return 0
+
+    print("VecPort driver plugins")
+    print()
+
+    for plugin in plugins:
+        print(
+            f"{plugin.name:<20} "
+            f"{plugin.value}"
+        )
+
+    return 0
+
+
+def _run_plugin_init_command(
+    args: argparse.Namespace,
+) -> int:
+    try:
+        result = create_driver_project(
+            args.driver_name,
+            output_dir=args.output,
+            distribution_name=(
+                args.distribution
+            ),
+            class_name=args.class_name,
+            force=args.force,
+        )
+
+    except (ValueError, OSError) as error:
+        print(
+            "Plugin scaffold error: "
+            f"{error}"
+        )
+        return 1
+
+    print(
+        "VecPort driver plugin "
+        "project created."
+    )
+    print(f"Location: {result.root}")
+    print()
+    print("Next:")
+    print(f"  cd {result.root}")
+    print(
+        "  python -m pip install -e ."
+    )
+
+    return 0
 
 
 def main():
@@ -557,6 +624,57 @@ def main():
         ),
     )
 
+    plugin = commands.add_parser(
+        "plugin",
+        help=(
+            "Manage VecPort third-party "
+            "driver plugins."
+        ),
+    )
+    plugin_subparsers = (
+        plugin.add_subparsers(
+            dest="plugin_command",
+            required=True,
+        )
+    )
+    plugin_subparsers.add_parser(
+        "list",
+        help=(
+            "List discovered third-party "
+            "driver plugins."
+        ),
+    )
+    plugin_init = (
+        plugin_subparsers.add_parser(
+            "init",
+            help=(
+                "Create a new VecPort "
+                "driver plugin project."
+            ),
+        )
+    )
+    plugin_init.add_argument(
+        "driver_name",
+    )
+    plugin_init.add_argument(
+        "--output",
+        default=".",
+    )
+    plugin_init.add_argument(
+        "--distribution",
+    )
+    plugin_init.add_argument(
+        "--class-name",
+    )
+    plugin_init.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Replace generated scaffold files "
+            "in an existing project."
+        ),
+    )
+
     args = parser.parse_args()
 
     config = {}
@@ -586,6 +704,17 @@ def main():
                 )
 
         return 0
+
+    if args.command == "plugin":
+        if args.plugin_command == "list":
+            return _run_plugin_list_command(
+                args
+            )
+
+        if args.plugin_command == "init":
+            return _run_plugin_init_command(
+                args
+            )
 
     if args.command == "compliance":
         return _run_compliance_command(args)
