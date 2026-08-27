@@ -28,6 +28,18 @@ data:
     - "$and"
     - "$or"
 
+metadata_transform:
+  rename:
+    old_category: category
+    createdAt: created_at
+  drop:
+    - debug
+  defaults:
+    source: legacy
+  cast:
+    price: int
+  strict: false
+
 migration:
   batch_size: 500
   verify: true

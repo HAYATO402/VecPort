@@ -402,6 +402,37 @@ def _print_project_assessment(
         print(line)
 
     print()
+    transform = assessment.metadata_transform
+    print("Metadata transform")
+    print(
+        "Enabled:                  "
+        + ("YES" if transform is not None else "NO")
+    )
+    print(
+        "Rename fields:            "
+        f"{len(transform.rename) if transform else 0}"
+    )
+    print(
+        "Drop fields:              "
+        f"{len(transform.drop) if transform else 0}"
+    )
+    print(
+        "Default fields:           "
+        f"{len(transform.defaults) if transform else 0}"
+    )
+    print(
+        "Cast fields:              "
+        f"{len(transform.cast) if transform else 0}"
+    )
+    print(
+        "Strict:                   "
+        + (
+            "YES"
+            if transform is not None and transform.strict
+            else "NO"
+        )
+    )
+    print()
     print(
         "Estimated batches: "
         f"{assessment.estimated_batches}"

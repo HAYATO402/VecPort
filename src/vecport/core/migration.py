@@ -10,7 +10,10 @@ from dataclasses import (
 from itertools import chain
 
 from vecport.core.errors import MigrationError
-from vecport.core.models import CollectionInfo
+from vecport.core.models import (
+    CollectionInfo,
+    VectorRecord,
+)
 
 
 @dataclass(frozen=True)
@@ -683,6 +686,10 @@ def migrate_collection(
         Callable[[MigrationProgress], None]
         | None
     ) = None,
+    record_transform: (
+        Callable[[VectorRecord], VectorRecord]
+        | None
+    ) = None,
 ) -> MigrationReport:
 
     if batch_size <= 0:
@@ -792,11 +799,12 @@ def migrate_collection(
     )
 
     if dry_run:
+        scanned = 0
 
-        scanned = sum(
-            1
-            for _ in records
-        )
+        for record in records:
+            if record_transform is not None:
+                record_transform(record)
+            scanned += 1
 
         return MigrationReport(
             source_collection=collection,
@@ -897,6 +905,9 @@ def migrate_collection(
         )
 
     for record in records:
+
+        if record_transform is not None:
+            record = record_transform(record)
 
         scanned += 1
 
