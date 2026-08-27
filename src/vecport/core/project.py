@@ -10,6 +10,12 @@ from vecport.core.errors import (
     InvalidConnectionURLError,
     MetadataTransformError,
 )
+from vecport.core.filter_compatibility import (
+    FilterCompatibilityReport,
+    FilterRequirements,
+    assess_filter_compatibility,
+    filter_requirements_from_config,
+)
 from vecport.core.migration import (
     MigrationPlan,
     plan_migration,
@@ -109,6 +115,7 @@ class MigrationProject:
     source: ProjectEndpoint
     target: ProjectEndpoint
     data: ProjectData
+    filter_requirements: FilterRequirements
     metadata_transform: MetadataTransformSpec | None
     migration: ProjectMigration
     benchmark: ProjectBenchmark
@@ -144,6 +151,9 @@ class MigrationAssessment:
     risks: tuple[AssessmentRisk, ...]
     risk_level: str
     recommendation: str
+    filter_report: FilterCompatibilityReport = field(
+        repr=False
+    )
     metadata_transform: MetadataTransformSpec | None = field(
         repr=False
     )
@@ -396,6 +406,33 @@ def parse_migration_project(
             f"Invalid metadata_transform: {error}"
         ) from error
 
+    data_filter_operators = _string_tuple(
+        data_config,
+        "filter_operators",
+        path="data",
+        default=BASIC_FILTER_OPERATORS,
+    )
+
+    try:
+        if config.get("filters") is None:
+            filter_requirements = (
+                FilterRequirements(
+                    required_operators=(
+                        data_filter_operators
+                    )
+                )
+            )
+        else:
+            filter_requirements = (
+                filter_requirements_from_config(
+                    config.get("filters")
+                )
+            )
+    except (TypeError, ValueError) as error:
+        raise ConfigError(
+            f"Invalid filters configuration: {error}"
+        ) from error
+
     return MigrationProject(
         project=ProjectDetails(
             name=project_name,
@@ -437,13 +474,9 @@ def parse_migration_project(
                 path="data",
                 default=False,
             ),
-            filter_operators=_string_tuple(
-                data_config,
-                "filter_operators",
-                path="data",
-                default=BASIC_FILTER_OPERATORS,
-            ),
+            filter_operators=data_filter_operators,
         ),
+        filter_requirements=filter_requirements,
         metadata_transform=metadata_transform,
         migration=ProjectMigration(
             batch_size=_positive_integer(
@@ -568,18 +601,21 @@ def assess_migration_project(
             project.migration.batch_size
         ),
     )
+    source_capabilities = (
+        source.capabilities()
+    )
     target_capabilities = (
         target.capabilities()
     )
-    requested_operators = set(
-        project.data.filter_operators
+    filter_report = assess_filter_compatibility(
+        source_driver=project.source.driver,
+        target_driver=project.target.driver,
+        requirements=project.filter_requirements,
+        source_capabilities=source_capabilities,
+        target_capabilities=target_capabilities,
     )
-    target_operators = set(
-        target_capabilities.filter_operators
-    )
-    missing_operators = sorted(
-        requested_operators
-        - target_operators
+    missing_operators = (
+        filter_report.unsupported_operators
     )
     configured_dimension_ok = (
         plan.dimension
@@ -591,10 +627,7 @@ def assess_migration_project(
         and plan.target_dimension_ok
         is not False
     )
-    filters_ok = (
-        target_capabilities.metadata_filter
-        and not missing_operators
-    )
+    filters_ok = filter_report.passed
     checks = (
         AssessmentCheck(
             name="Dense vectors",
@@ -718,8 +751,9 @@ def assess_migration_project(
 
     if not filters_ok:
         add_risk(
-            "HIGH",
-            "Target driver cannot execute all requested filters.",
+            "MEDIUM",
+            "Filter operators require application code review: "
+            + ", ".join(missing_operators),
         )
 
     record_scope = max(
@@ -807,6 +841,7 @@ def assess_migration_project(
         risks=tuple(risks),
         risk_level=risk_level,
         recommendation=recommendation,
+        filter_report=filter_report,
         metadata_transform=(
             project.metadata_transform
         ),

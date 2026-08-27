@@ -1,5 +1,6 @@
 import argparse
 import os
+from pathlib import Path
 
 from vecport import connect_url
 from vecport.core.benchmark import (
@@ -14,6 +15,9 @@ from vecport.core.compliance import (
     run_compliance,
 )
 from vecport.core.config import load_config
+from vecport.core.filter_compatibility import (
+    render_filter_report,
+)
 from vecport.core.migration import (
     migrate_collection,
     plan_migration,
@@ -390,17 +394,47 @@ def _print_project_assessment(
     )
     print()
 
-    for check in assessment.checks:
+    for assessment_check in assessment.checks:
         line = (
-            f"{check.name:<22} "
-            f"{check.status}"
+            f"{assessment_check.name:<22} "
+            f"{assessment_check.status}"
         )
 
-        if check.detail:
-            line += f" - {check.detail}"
+        if assessment_check.detail:
+            line += (
+                f" - {assessment_check.detail}"
+            )
 
         print(line)
 
+    print()
+    print("Filter compatibility")
+    for filter_check in assessment.filter_report.checks:
+        status = (
+            "SUPPORTED"
+            if filter_check.passed
+            else "UNSUPPORTED"
+        )
+        print(
+            f"{filter_check.operator:<27} "
+            f"{status}"
+        )
+    unsupported = (
+        ", ".join(
+            assessment
+            .filter_report
+            .unsupported_operators
+        )
+        or "None"
+    )
+    print(
+        "Unsupported operators      "
+        f"{unsupported}"
+    )
+    print(
+        "Filter migration           "
+        f"{assessment.filter_report.recommendation}"
+    )
     print()
     transform = assessment.metadata_transform
     print("Metadata transform")
@@ -460,9 +494,9 @@ def _print_project_assessment(
     print("No data will be written.")
 
 
-def _run_project_check_command(
+def _assess_project_config(
     config: dict,
-) -> int:
+) -> MigrationAssessment:
     project = parse_migration_project(
         config
     )
@@ -482,16 +516,11 @@ def _run_project_check_command(
                 "TARGET"
             ),
         )
-        assessment = assess_migration_project(
+        return assess_migration_project(
             project,
             source,
             target,
         )
-        _print_project_assessment(
-            assessment
-        )
-
-        return 0 if assessment.ready else 1
 
     finally:
         if target is not None:
@@ -502,6 +531,41 @@ def _run_project_check_command(
             and source is not target
         ):
             _close_driver(source)
+
+
+def _run_project_check_command(
+    config: dict,
+) -> int:
+    assessment = _assess_project_config(
+        config
+    )
+    _print_project_assessment(assessment)
+    return 0 if assessment.ready else 1
+
+
+def _run_project_filter_report_command(
+    config: dict,
+    output: str,
+) -> int:
+    assessment = _assess_project_config(
+        config
+    )
+    output_path = Path(output)
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+    output_path.write_text(
+        render_filter_report(
+            assessment.filter_report
+        ),
+        encoding="utf-8",
+    )
+    print(
+        "Filter compatibility report written: "
+        f"{output_path}"
+    )
+    return 0
 
 
 def main():
@@ -824,6 +888,25 @@ def main():
             "Migration intake YAML file."
         ),
     )
+    project_filter_report = (
+        project_subparsers.add_parser(
+            "filter-report",
+            help=(
+                "Write a customer-facing filter "
+                "compatibility report."
+            ),
+        )
+    )
+    project_filter_report.add_argument(
+        "--config",
+        required=True,
+        help="Migration intake YAML file.",
+    )
+    project_filter_report.add_argument(
+        "--output",
+        required=True,
+        help="Output Markdown report path.",
+    )
 
     plugin = commands.add_parser(
         "plugin",
@@ -923,6 +1006,15 @@ def main():
     ):
         return _run_project_check_command(
             config
+        )
+
+    if (
+        args.command == "project"
+        and args.project_command == "filter-report"
+    ):
+        return _run_project_filter_report_command(
+            config,
+            args.output,
         )
 
     if args.command == "compliance":
