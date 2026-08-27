@@ -62,6 +62,13 @@ benchmark:
   top_k: 10
   queries: 50
 
+search_comparison:
+  enabled: true
+  top_k: 10
+  warmup: 3
+  minimum_recall_at_k: 0.90
+  minimum_top1_match_rate: 0.80
+
 application:
   language: python
   framework: langchain

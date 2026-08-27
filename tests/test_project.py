@@ -196,9 +196,71 @@ def test_parse_migration_project():
         == ("$eq", "$lt")
     )
     assert project.metadata_transform is None
+    assert project.search_comparison is None
     assert "localhost" not in repr(
         project.source
     )
+
+
+def test_project_parses_search_comparison():
+    config = _project_config()
+    config["search_comparison"] = {
+        "enabled": True,
+        "top_k": 5,
+        "warmup": 2,
+        "minimum_recall_at_k": 0.95,
+        "minimum_top1_match_rate": 0.85,
+    }
+
+    project = parse_migration_project(config)
+    comparison = project.search_comparison
+
+    assert comparison is not None
+    assert comparison.top_k == 5
+    assert comparison.warmup == 2
+    assert comparison.minimum_recall_at_k == 0.95
+    assert comparison.minimum_top1_match_rate == 0.85
+
+
+def test_project_can_disable_search_comparison():
+    config = _project_config()
+    config["search_comparison"] = {
+        "enabled": False,
+    }
+
+    project = parse_migration_project(config)
+
+    assert project.search_comparison is None
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("enabled", "yes"),
+        ("top_k", 0),
+        ("top_k", True),
+        ("warmup", -1),
+        ("warmup", False),
+        ("minimum_recall_at_k", 90),
+        ("minimum_recall_at_k", True),
+        ("minimum_top1_match_rate", -0.1),
+        ("minimum_top1_match_rate", 1.1),
+    ],
+)
+def test_project_rejects_invalid_search_comparison(
+    key,
+    value,
+):
+    config = _project_config()
+    config["search_comparison"] = {
+        key: value,
+    }
+
+    with pytest.raises(
+        ConfigError,
+        match="search_comparison",
+    ):
+        parse_migration_project(config)
 
 
 def test_load_project_expands_environment_variables(
