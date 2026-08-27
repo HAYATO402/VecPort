@@ -45,6 +45,12 @@ from vecport.core.reporting import (
     write_csv_report,
     write_json_report,
 )
+from vecport.core.search_comparison import (
+    compare_search_results,
+    load_search_queries,
+    render_search_comparison_report,
+    validate_query_dimensions,
+)
 
 
 def _connection_overrides(
@@ -635,6 +641,122 @@ def _run_project_code_report_command(
     return 0
 
 
+def _run_project_search_report_command(
+    config: dict,
+    queries_path: str,
+    output: str,
+) -> int:
+    try:
+        project = parse_migration_project(
+            config
+        )
+        comparison_config = (
+            project.search_comparison
+        )
+
+        if comparison_config is None:
+            raise ValueError(
+                "Search comparison is not enabled "
+                "in the migration project."
+            )
+
+        queries = load_search_queries(
+            queries_path
+        )
+        validate_query_dimensions(
+            queries,
+            expected_dimension=(
+                project.data.dimension
+            ),
+        )
+
+    except ValueError as error:
+        print(
+            "Search comparison error: "
+            f"{error}"
+        )
+        return 1
+
+    source = None
+    target = None
+
+    try:
+        source = connect_url(
+            project.source.connection,
+            **_connection_overrides(
+                "SOURCE"
+            ),
+        )
+        target = connect_url(
+            project.target.connection,
+            **_connection_overrides(
+                "TARGET"
+            ),
+        )
+        report = compare_search_results(
+            source_db=source,
+            target_db=target,
+            source_driver=project.source.driver,
+            target_driver=project.target.driver,
+            source_collection=(
+                project.source.collection
+            ),
+            target_collection=(
+                project.target.collection
+            ),
+            queries=queries,
+            config=comparison_config,
+        )
+        markdown = (
+            render_search_comparison_report(
+                report
+            )
+        )
+        output_path = Path(output)
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        output_path.write_text(
+            markdown,
+            encoding="utf-8",
+        )
+
+    except OSError:
+        print(
+            "Search comparison error: "
+            "failed to write report."
+        )
+        return 1
+
+    except Exception:  # noqa: BLE001
+        print(
+            "Search comparison error: "
+            "source or target search failed."
+        )
+        return 1
+
+    finally:
+        if target is not None:
+            _close_driver(target)
+
+        if (
+            source is not None
+            and source is not target
+        ):
+            _close_driver(source)
+
+    print(
+        "Search comparison report generated."
+    )
+    print(
+        "Recommendation: "
+        f"{report.recommendation}"
+    )
+    print(f"Output: {output_path}")
+    return 0
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -1003,6 +1125,30 @@ def main():
         required=True,
         help="Output Markdown report path.",
     )
+    project_search_report = (
+        project_subparsers.add_parser(
+            "search-report",
+            help=(
+                "Compare source and target search "
+                "results and latency."
+            ),
+        )
+    )
+    project_search_report.add_argument(
+        "--config",
+        required=True,
+        help="Migration intake YAML file.",
+    )
+    project_search_report.add_argument(
+        "--queries",
+        required=True,
+        help="Local JSONL query-vector dataset.",
+    )
+    project_search_report.add_argument(
+        "--output",
+        required=True,
+        help="Output Markdown report path.",
+    )
 
     plugin = commands.add_parser(
         "plugin",
@@ -1120,6 +1266,16 @@ def main():
         return _run_project_code_report_command(
             config,
             args.source_code,
+            args.output,
+        )
+
+    if (
+        args.command == "project"
+        and args.project_command == "search-report"
+    ):
+        return _run_project_search_report_command(
+            config,
+            args.queries,
             args.output,
         )
 

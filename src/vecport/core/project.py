@@ -20,6 +20,9 @@ from vecport.core.migration import (
     MigrationPlan,
     plan_migration,
 )
+from vecport.core.search_comparison import (
+    SearchComparisonConfig,
+)
 from vecport.core.transforms import (
     MetadataTransformSpec,
     transform_spec_from_config,
@@ -119,6 +122,7 @@ class MigrationProject:
     metadata_transform: MetadataTransformSpec | None
     migration: ProjectMigration
     benchmark: ProjectBenchmark
+    search_comparison: SearchComparisonConfig | None
     application: ProjectApplication
     deliverables: ProjectDeliverables
 
@@ -220,6 +224,50 @@ def _positive_integer(
         )
 
     return value
+
+
+def _non_negative_integer(
+    config: dict[str, Any],
+    key: str,
+    *,
+    path: str,
+    default: int,
+) -> int:
+    value = config.get(key, default)
+
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+    ):
+        raise ConfigError(
+            f"'{path}.{key}' must be a "
+            "non-negative integer"
+        )
+
+    return value
+
+
+def _unit_interval(
+    config: dict[str, Any],
+    key: str,
+    *,
+    path: str,
+    default: float,
+) -> float:
+    value = config.get(key, default)
+
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not 0.0 <= float(value) <= 1.0
+    ):
+        raise ConfigError(
+            f"'{path}.{key}' must be between "
+            "0.0 and 1.0"
+        )
+
+    return float(value)
 
 
 def _boolean(
@@ -354,6 +402,10 @@ def parse_migration_project(
         config,
         "benchmark",
     )
+    search_comparison_config = _mapping(
+        config,
+        "search_comparison",
+    )
     application_config = _mapping(
         config,
         "application",
@@ -432,6 +484,53 @@ def parse_migration_project(
         raise ConfigError(
             f"Invalid filters configuration: {error}"
         ) from error
+
+    parsed_search_comparison = None
+
+    if config.get("search_comparison") is not None:
+        search_comparison_enabled = _boolean(
+            search_comparison_config,
+            "enabled",
+            path="search_comparison",
+            default=True,
+        )
+        configured_search_comparison = (
+            SearchComparisonConfig(
+                top_k=_positive_integer(
+                    search_comparison_config,
+                    "top_k",
+                    path="search_comparison",
+                    default=10,
+                ),
+                warmup=_non_negative_integer(
+                    search_comparison_config,
+                    "warmup",
+                    path="search_comparison",
+                    default=3,
+                ),
+                minimum_recall_at_k=(
+                    _unit_interval(
+                        search_comparison_config,
+                        "minimum_recall_at_k",
+                        path="search_comparison",
+                        default=0.90,
+                    )
+                ),
+                minimum_top1_match_rate=(
+                    _unit_interval(
+                        search_comparison_config,
+                        "minimum_top1_match_rate",
+                        path="search_comparison",
+                        default=0.80,
+                    )
+                ),
+            )
+        )
+
+        if search_comparison_enabled:
+            parsed_search_comparison = (
+                configured_search_comparison
+            )
 
     return MigrationProject(
         project=ProjectDetails(
@@ -518,6 +617,9 @@ def parse_migration_project(
                 path="benchmark",
                 default=50,
             ),
+        ),
+        search_comparison=(
+            parsed_search_comparison
         ),
         application=ProjectApplication(
             language=_non_empty_string(

@@ -1125,6 +1125,34 @@ variable values are not copied into the generated report. Keep customer input
 under a local `customer-code/` directory; both that directory and `reports/`
 are ignored by Git.
 
+### Search quality and latency comparison
+
+VecPort can run the same local query vectors against both the source and
+target vector databases:
+
+```bash
+vecport project search-report \
+  --config migration-intake.yml \
+  --queries customer-data/search-queries.jsonl \
+  --output reports/search-comparison.md
+```
+
+The report includes:
+
+- Recall@K using the source database as the reference
+- Top-1 match rate
+- Top-K overlap
+- source p50, p95, and p99 latency
+- target p50, p95, and p99 latency
+
+The reported Recall@K is a migration consistency metric. It is not a
+human relevance-labeled information-retrieval recall metric. Latency results
+apply only to the tested environment and query set.
+
+Query datasets may contain customer information. Keep them under the local
+`customer-data/` directory, which is ignored by Git. Generated Markdown shows
+only aggregate metrics and does not include query IDs or result document IDs.
+
 ## Cross-Database Migration
 
 VecPort can migrate vector records between supported vector databases using the same common interface.
