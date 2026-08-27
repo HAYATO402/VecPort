@@ -1,0 +1,50 @@
+project:
+  name: customer-demo
+
+source:
+  driver: qdrant
+  connection: "${SOURCE_URL}"
+  collection: documents
+
+target:
+  driver: milvus
+  connection: "${TARGET_URL}"
+  collection: documents_migrated
+
+data:
+  estimated_records: 10000
+  dimension: 1536
+  collection_count: 1
+  vector_mode: dense
+  metadata_mapping: false
+  filter_operators:
+    - "$eq"
+    - "$ne"
+    - "$gt"
+    - "$gte"
+    - "$lt"
+    - "$lte"
+    - "$in"
+    - "$and"
+    - "$or"
+
+migration:
+  batch_size: 500
+  verify: true
+  resume: true
+  existing_policy: repair
+
+benchmark:
+  enabled: true
+  top_k: 10
+  queries: 50
+
+application:
+  language: python
+  framework: langchain
+
+deliverables:
+  migration_plan: true
+  verification: true
+  benchmark: true
+  code_patch: true

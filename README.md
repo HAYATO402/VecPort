@@ -940,6 +940,65 @@ from vecport.driver_sdk import (
 > Third-party driver packages execute Python code when their driver is
 > loaded. Install plugins only from sources you trust.
 
+## Migration Project Assessment
+
+Represent one customer migration with a single intake file and run a
+read-only feasibility assessment before writing any target data.
+
+Start from the public, secret-free example:
+
+```bash
+curl -o migration-intake.yml \
+  https://raw.githubusercontent.com/HAYATO402/vecport/main/examples/migration-intake.yml
+export SOURCE_URL="vecport://qdrant?url=http://localhost:6333"
+export TARGET_URL="vecport://milvus?uri=http://localhost:19530"
+vecport project check --config migration-intake.yml
+```
+
+Example output:
+
+```text
+VecPort Migration Assessment
+
+Project: customer-demo
+Source: Qdrant
+Target: Milvus
+Collection: documents -> documents_migrated
+Records: 10,000 (estimated ~10,000)
+Dimension: 1536
+
+Dense vectors          SUPPORTED
+Metadata               SUPPORTED
+Filters                SUPPORTED
+Dimension              COMPATIBLE
+Distance metric        COMPATIBLE
+
+Estimated batches: 20
+Risk level: LOW
+Risk factors:
+- None
+
+Migration PoC: READY
+No data will be written.
+```
+
+The assessment uses the existing Migration Plan and scans the source once to
+obtain an exact record count and dimension. It inspects the target collection
+and driver capabilities without creating, replacing, or updating data.
+
+Risk levels are `LOW`, `MEDIUM`, and `HIGH`. The corresponding recommendations
+are `READY`, `CONDITIONAL`, and `NOT READY`.
+
+Do not store credentials in a connection URL or commit a real customer intake
+file. Supply credentials through `VECPORT_SOURCE_API_KEY`,
+`VECPORT_SOURCE_PASSWORD`, `VECPORT_SOURCE_TOKEN`, and the corresponding
+`VECPORT_TARGET_*` variables. Local intake files, `runs/`, and generated
+customer deliverables are ignored by Git.
+
+The fixed Small Migration PoC scope, deliverables, risk definitions, and
+pricing boundaries are documented in
+[`docs/small-migration-poc.md`](https://github.com/HAYATO402/vecport/blob/main/docs/small-migration-poc.md).
+
 ## Cross-Database Migration
 
 VecPort can migrate vector records between supported vector databases using the same common interface.

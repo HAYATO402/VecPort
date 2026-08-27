@@ -25,6 +25,11 @@ from vecport.core.plugin_scaffold import (
 from vecport.core.plugins import (
     discover_driver_plugins,
 )
+from vecport.core.project import (
+    MigrationAssessment,
+    assess_migration_project,
+    parse_migration_project,
+)
 from vecport.core.reporting import (
     write_csv_report,
     write_json_report,
@@ -332,6 +337,142 @@ def _run_plugin_init_command(
     return 0
 
 
+def _driver_label(
+    driver: str,
+) -> str:
+    return {
+        "qdrant": "Qdrant",
+        "pinecone": "Pinecone",
+        "weaviate": "Weaviate",
+        "milvus": "Milvus",
+        "pgvector": "pgvector",
+    }.get(
+        driver,
+        driver,
+    )
+
+
+def _print_project_assessment(
+    assessment: MigrationAssessment,
+) -> None:
+    print("VecPort Migration Assessment")
+    print()
+    print(
+        f"Project: {assessment.project_name}"
+    )
+    print(
+        "Source: "
+        f"{_driver_label(assessment.source_driver)}"
+    )
+    print(
+        "Target: "
+        f"{_driver_label(assessment.target_driver)}"
+    )
+    print(
+        "Collection: "
+        f"{assessment.source_collection}"
+        " -> "
+        f"{assessment.target_collection}"
+    )
+    print(
+        "Records: "
+        f"{assessment.actual_records:,} "
+        "(estimated "
+        f"~{assessment.estimated_records:,})"
+    )
+    print(
+        "Dimension: "
+        + (
+            str(assessment.dimension)
+            if assessment.dimension is not None
+            else "N/A"
+        )
+    )
+    print()
+
+    for check in assessment.checks:
+        line = (
+            f"{check.name:<22} "
+            f"{check.status}"
+        )
+
+        if check.detail:
+            line += f" - {check.detail}"
+
+        print(line)
+
+    print()
+    print(
+        "Estimated batches: "
+        f"{assessment.estimated_batches}"
+    )
+    print(
+        "Risk level: "
+        f"{assessment.risk_level}"
+    )
+    print("Risk factors:")
+
+    if assessment.risks:
+        for risk in assessment.risks:
+            print(
+                f"- [{risk.level}] "
+                f"{risk.detail}"
+            )
+    else:
+        print("- None")
+
+    print()
+    print(
+        "Migration PoC: "
+        f"{assessment.recommendation}"
+    )
+    print("No data will be written.")
+
+
+def _run_project_check_command(
+    config: dict,
+) -> int:
+    project = parse_migration_project(
+        config
+    )
+    source = None
+    target = None
+
+    try:
+        source = connect_url(
+            project.source.connection,
+            **_connection_overrides(
+                "SOURCE"
+            ),
+        )
+        target = connect_url(
+            project.target.connection,
+            **_connection_overrides(
+                "TARGET"
+            ),
+        )
+        assessment = assess_migration_project(
+            project,
+            source,
+            target,
+        )
+        _print_project_assessment(
+            assessment
+        )
+
+        return 0 if assessment.ready else 1
+
+    finally:
+        if target is not None:
+            _close_driver(target)
+
+        if (
+            source is not None
+            and source is not target
+        ):
+            _close_driver(source)
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -624,6 +765,35 @@ def main():
         ),
     )
 
+    project = commands.add_parser(
+        "project",
+        help=(
+            "Assess migration projects."
+        ),
+    )
+    project_subparsers = (
+        project.add_subparsers(
+            dest="project_command",
+            required=True,
+        )
+    )
+    project_check = (
+        project_subparsers.add_parser(
+            "check",
+            help=(
+                "Assess migration feasibility "
+                "without writing data."
+            ),
+        )
+    )
+    project_check.add_argument(
+        "--config",
+        required=True,
+        help=(
+            "Migration intake YAML file."
+        ),
+    )
+
     plugin = commands.add_parser(
         "plugin",
         help=(
@@ -715,6 +885,14 @@ def main():
             return _run_plugin_init_command(
                 args
             )
+
+    if (
+        args.command == "project"
+        and args.project_command == "check"
+    ):
+        return _run_project_check_command(
+            config
+        )
 
     if args.command == "compliance":
         return _run_compliance_command(args)

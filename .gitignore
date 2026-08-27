@@ -23,10 +23,16 @@ htmlcov/
 
 # Local VecPort config
 vecport.yml
+migration-intake.yml
+*-intake.yml
+customer-*.yml
 !examples/vecport.yml
+!examples/migration-intake.yml
 
 # Local reports / logs
 reports/
+runs/
+customer-migration/
 *.log
 
 # Local database data
