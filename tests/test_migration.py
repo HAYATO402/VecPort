@@ -13,6 +13,10 @@ from vecport.core.models import (
     CollectionInfo,
     VectorRecord,
 )
+from vecport.core.transforms import (
+    MetadataTransformer,
+    MetadataTransformSpec,
+)
 
 
 class FakeDriver:
@@ -910,6 +914,112 @@ def test_migration_reports_progress():
         final.eta_seconds
         is not None
     )
+
+
+def test_migration_applies_record_transform():
+    source = FakeDriver()
+    target = FakeDriver()
+    source.create_collection(
+        "documents",
+        dimension=2,
+    )
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0],
+                metadata={
+                    "old_category": "AI",
+                    "price": "5000",
+                },
+            )
+        ],
+    )
+    transformer = MetadataTransformer(
+        MetadataTransformSpec(
+            rename={
+                "old_category": "category",
+            },
+            cast={
+                "price": "int",
+            },
+        )
+    )
+
+    migrate_collection(
+        source,
+        target,
+        collection="documents",
+        record_transform=transformer,
+    )
+
+    migrated = target.get(
+        "documents",
+        ["1"],
+    )
+    assert migrated[0].metadata == {
+        "category": "AI",
+        "price": 5000,
+    }
+    assert source.get(
+        "documents",
+        ["1"],
+    )[0].metadata == {
+        "old_category": "AI",
+        "price": "5000",
+    }
+
+
+def test_resume_compares_transformed_metadata():
+    source = FakeDriver()
+    target = FakeDriver()
+    source.create_collection(
+        "documents",
+        dimension=2,
+    )
+    source.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0],
+                metadata={"old": "value"},
+            )
+        ],
+    )
+    target.create_collection(
+        "documents",
+        dimension=2,
+    )
+    target.upsert(
+        "documents",
+        [
+            VectorRecord(
+                id="1",
+                vector=[1.0, 0.0],
+                metadata={"new": "value"},
+            )
+        ],
+    )
+    transformer = MetadataTransformer(
+        MetadataTransformSpec(
+            rename={"old": "new"}
+        )
+    )
+
+    report = migrate_collection(
+        source,
+        target,
+        collection="documents",
+        resume=True,
+        existing_policy="repair",
+        record_transform=transformer,
+    )
+
+    assert report.migrated == 0
+    assert report.skipped_existing == 1
+    assert report.repaired_existing == 0
 
 
 def test_migration_resume_skips_existing():

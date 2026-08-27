@@ -973,12 +973,20 @@ Filters                SUPPORTED
 Dimension              COMPATIBLE
 Distance metric        COMPATIBLE
 
-Estimated batches: 20
-Risk level: LOW
-Risk factors:
-- None
+Metadata transform
+Enabled:                  YES
+Rename fields:            2
+Drop fields:              1
+Default fields:           1
+Cast fields:              1
+Strict:                   NO
 
-Migration PoC: READY
+Estimated batches: 20
+Risk level: MEDIUM
+Risk factors:
+- [MEDIUM] Metadata transformation requires mapping review.
+
+Migration PoC: CONDITIONAL
 No data will be written.
 ```
 
@@ -998,6 +1006,55 @@ customer deliverables are ignored by Git.
 The fixed Small Migration PoC scope, deliverables, risk definitions, and
 pricing boundaries are documented in
 [`docs/small-migration-poc.md`](https://github.com/HAYATO402/vecport/blob/main/docs/small-migration-poc.md).
+
+### Metadata transformation
+
+Migration intake files can define safe, declarative metadata changes. VecPort
+applies them before resume/conflict comparison and before writing to the target:
+
+```yaml
+metadata_transform:
+  rename:
+    old_category: category
+    createdAt: created_at
+  drop:
+    - debug
+  defaults:
+    source: legacy
+  cast:
+    price: int
+  strict: false
+```
+
+The fixed processing order is rename, drop, defaults, then cast. Existing
+rename targets are never overwritten, and `strict: true` rejects records that
+are missing a configured rename source or cast field. Supported casts are
+`str`, `int`, `float`, and `bool`; arbitrary code or expressions are not run.
+
+For example, this source metadata:
+
+```json
+{
+  "old_category": "AI",
+  "price": "5000",
+  "debug": true
+}
+```
+
+becomes:
+
+```json
+{
+  "category": "AI",
+  "price": 5000,
+  "source": "legacy"
+}
+```
+
+`vecport project check` reports whether the transform is enabled, the number
+of configured rename/drop/default/cast fields, and strict-mode status. Because
+metadata changes require customer mapping review, an enabled transform is
+reported as a MEDIUM risk and makes the assessment `CONDITIONAL`.
 
 ## Cross-Database Migration
 

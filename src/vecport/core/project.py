@@ -6,10 +6,17 @@ from typing import Any
 
 from vecport.core.config import ConfigError, load_config
 from vecport.core.connection import parse_connection_url
-from vecport.core.errors import InvalidConnectionURLError
+from vecport.core.errors import (
+    InvalidConnectionURLError,
+    MetadataTransformError,
+)
 from vecport.core.migration import (
     MigrationPlan,
     plan_migration,
+)
+from vecport.core.transforms import (
+    MetadataTransformSpec,
+    transform_spec_from_config,
 )
 
 SUPPORTED_PROJECT_DRIVERS = (
@@ -102,6 +109,7 @@ class MigrationProject:
     source: ProjectEndpoint
     target: ProjectEndpoint
     data: ProjectData
+    metadata_transform: MetadataTransformSpec | None
     migration: ProjectMigration
     benchmark: ProjectBenchmark
     application: ProjectApplication
@@ -136,6 +144,9 @@ class MigrationAssessment:
     risks: tuple[AssessmentRisk, ...]
     risk_level: str
     recommendation: str
+    metadata_transform: MetadataTransformSpec | None = field(
+        repr=False
+    )
     plan: MigrationPlan = field(repr=False)
 
     @property
@@ -374,6 +385,17 @@ def parse_migration_project(
             "'skip', 'repair', or 'error'"
         )
 
+    try:
+        metadata_transform = (
+            transform_spec_from_config(
+                config.get("metadata_transform")
+            )
+        )
+    except MetadataTransformError as error:
+        raise ConfigError(
+            f"Invalid metadata_transform: {error}"
+        ) from error
+
     return MigrationProject(
         project=ProjectDetails(
             name=project_name,
@@ -422,6 +444,7 @@ def parse_migration_project(
                 default=BASIC_FILTER_OPERATORS,
             ),
         ),
+        metadata_transform=metadata_transform,
         migration=ProjectMigration(
             batch_size=_positive_integer(
                 migration_config,
@@ -733,7 +756,10 @@ def assess_migration_project(
             "Actual record count differs materially from the estimate.",
         )
 
-    if project.data.metadata_mapping:
+    if (
+        project.data.metadata_mapping
+        or project.metadata_transform is not None
+    ):
         add_risk(
             "MEDIUM",
             "Metadata transformation requires mapping review.",
@@ -781,5 +807,8 @@ def assess_migration_project(
         risks=tuple(risks),
         risk_level=risk_level,
         recommendation=recommendation,
+        metadata_transform=(
+            project.metadata_transform
+        ),
         plan=plan,
     )

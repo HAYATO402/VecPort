@@ -188,6 +188,7 @@ def test_parse_migration_project():
     assert project.data.dimension == 3
     assert project.migration.batch_size == 2
     assert project.benchmark.queries == 50
+    assert project.metadata_transform is None
     assert "localhost" not in repr(
         project.source
     )
@@ -333,6 +334,56 @@ def test_assessment_reports_medium_mapping_risk():
     assert assessment.ready
 
 
+def test_project_parses_and_reports_metadata_transform():
+    config = _project_config()
+    config["metadata_transform"] = {
+        "rename": {
+            "old_category": "category",
+        },
+        "drop": ["debug"],
+        "defaults": {
+            "source": "legacy",
+        },
+        "cast": {
+            "price": "int",
+        },
+        "strict": False,
+    }
+    project = parse_migration_project(config)
+    source, target = _drivers()
+
+    assessment = assess_migration_project(
+        project,
+        source,
+        target,
+    )
+
+    assert project.metadata_transform is not None
+    assert project.metadata_transform.rename == {
+        "old_category": "category",
+    }
+    assert assessment.metadata_transform is (
+        project.metadata_transform
+    )
+    assert assessment.risk_level == "MEDIUM"
+    assert assessment.recommendation == "CONDITIONAL"
+
+
+def test_project_rejects_invalid_metadata_transform():
+    config = _project_config()
+    config["metadata_transform"] = {
+        "cast": {
+            "price": "decimal",
+        }
+    }
+
+    with pytest.raises(
+        ConfigError,
+        match="Invalid metadata_transform",
+    ):
+        parse_migration_project(config)
+
+
 def test_assessment_reports_high_dimension_risk():
     project = parse_migration_project(
         _project_config(
@@ -408,6 +459,10 @@ data:
   filter_operators: ["$eq", "$lt"]
 migration:
   batch_size: 2
+metadata_transform:
+  rename:
+    old_category: category
+  strict: false
 """,
         encoding="utf-8",
     )
@@ -442,7 +497,10 @@ migration:
     assert source.closed
     assert target.closed
     assert "VecPort Migration Assessment" in captured.out
-    assert "Risk level: LOW" in captured.out
-    assert "Migration PoC: READY" in captured.out
+    assert "Enabled:                  YES" in captured.out
+    assert "Rename fields:            1" in captured.out
+    assert "Strict:                   NO" in captured.out
+    assert "Risk level: MEDIUM" in captured.out
+    assert "Migration PoC: CONDITIONAL" in captured.out
     assert "No data will be written." in captured.out
     assert "localhost" not in captured.out

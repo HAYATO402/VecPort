@@ -20,6 +20,10 @@ class MigrationError(VecPortError):
     """Raised when a VecPort migration fails."""
 
 
+class MetadataTransformError(VecPortError):
+    """Raised when metadata transformation fails."""
+
+
 class DriverPluginError(VecPortError):
     """Base exception for driver plugin failures."""
 
