@@ -10,11 +10,18 @@ from vecport.core.benchmark import (
 from vecport.core.benchmark_dataset import (
     make_benchmark_query,
 )
+from vecport.core.code_migration import (
+    build_search_code_migration_report,
+    render_search_code_report,
+)
 from vecport.core.compliance import (
     ComplianceReport,
     run_compliance,
 )
 from vecport.core.config import load_config
+from vecport.core.errors import (
+    SearchCodeMigrationError,
+)
 from vecport.core.filter_compatibility import (
     render_filter_report,
 )
@@ -568,6 +575,66 @@ def _run_project_filter_report_command(
     return 0
 
 
+def _run_project_code_report_command(
+    config: dict,
+    source_code: list[str],
+    output: str,
+) -> int:
+    try:
+        project = parse_migration_project(
+            config
+        )
+
+        if project.application.language != "python":
+            raise SearchCodeMigrationError(
+                "Search code migration currently "
+                "supports only Python files."
+            )
+
+        report = build_search_code_migration_report(
+            source_driver=project.source.driver,
+            target_driver=project.target.driver,
+            collection=project.target.collection,
+            source_files=source_code,
+            preferred_framework=(
+                project.application.framework
+            ),
+        )
+        markdown = render_search_code_report(
+            report
+        )
+        output_path = Path(output)
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        output_path.write_text(
+            markdown,
+            encoding="utf-8",
+        )
+
+    except SearchCodeMigrationError as error:
+        print(
+            "Search code migration error: "
+            f"{error}"
+        )
+        return 1
+
+    except OSError:
+        print(
+            "Search code migration error: "
+            "failed to write report."
+        )
+        return 1
+
+    print(
+        "Search code migration report generated."
+    )
+    print(f"Status: {report.status}")
+    print(f"Output: {output_path}")
+    return 0
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -907,6 +974,35 @@ def main():
         required=True,
         help="Output Markdown report path.",
     )
+    project_code_report = (
+        project_subparsers.add_parser(
+            "code-report",
+            help=(
+                "Analyze application search code "
+                "and generate a VecPort migration "
+                "report."
+            ),
+        )
+    )
+    project_code_report.add_argument(
+        "--config",
+        required=True,
+        help="Migration intake YAML file.",
+    )
+    project_code_report.add_argument(
+        "--source-code",
+        action="append",
+        required=True,
+        help=(
+            "Python source file to analyze. "
+            "May be specified up to three times."
+        ),
+    )
+    project_code_report.add_argument(
+        "--output",
+        required=True,
+        help="Output Markdown report path.",
+    )
 
     plugin = commands.add_parser(
         "plugin",
@@ -1014,6 +1110,16 @@ def main():
     ):
         return _run_project_filter_report_command(
             config,
+            args.output,
+        )
+
+    if (
+        args.command == "project"
+        and args.project_command == "code-report"
+    ):
+        return _run_project_code_report_command(
+            config,
+            args.source_code,
             args.output,
         )
 

@@ -35,6 +35,10 @@ runs/
 customer-migration/
 *.log
 
+# Customer migration inputs
+customer-code/
+customer-data/
+
 # Local database data
 .vecport-qdrant/
 milvus_data/
