@@ -1102,6 +1102,29 @@ remain visible as `UNSUPPORTED` instead of being silently discarded. Generated
 reports may contain customer-specific project information, so `reports/` is
 ignored by Git and must not be committed.
 
+### Search code migration
+
+VecPort can inspect one to three Python search files and generate a migration
+plan without modifying the customer's source repository:
+
+```bash
+vecport project code-report \
+  --config migration-intake.yml \
+  --source-code app/search.py \
+  --output reports/search-code-migration.md
+```
+
+Repeat `--source-code` to analyze additional files. The report can detect
+common search usage for Qdrant, Pinecone, Weaviate, Milvus, and pgvector, as
+well as LangChain and LlamaIndex integrations. It identifies search calls and
+filter arguments and provides a credential-free VecPort replacement example.
+
+This command is read-only: it does not modify the supplied Python files.
+Customer source code, full local paths, connection URLs, and environment
+variable values are not copied into the generated report. Keep customer input
+under a local `customer-code/` directory; both that directory and `reports/`
+are ignored by Git.
+
 ## Cross-Database Migration
 
 VecPort can migrate vector records between supported vector databases using the same common interface.

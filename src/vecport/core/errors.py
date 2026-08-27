@@ -24,6 +24,10 @@ class MetadataTransformError(VecPortError):
     """Raised when metadata transformation fails."""
 
 
+class SearchCodeMigrationError(VecPortError):
+    """Raised when search code migration analysis fails."""
+
+
 class DriverPluginError(VecPortError):
     """Base exception for driver plugin failures."""
 
