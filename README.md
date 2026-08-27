@@ -973,6 +973,14 @@ Filters                SUPPORTED
 Dimension              COMPATIBLE
 Distance metric        COMPATIBLE
 
+Filter compatibility
+$and                        SUPPORTED
+$eq                         SUPPORTED
+$in                         SUPPORTED
+$lt                         SUPPORTED
+Unsupported operators      None
+Filter migration           READY
+
 Metadata transform
 Enabled:                  YES
 Rename fields:            2
@@ -1055,6 +1063,44 @@ becomes:
 of configured rename/drop/default/cast fields, and strict-mode status. Because
 metadata changes require customer mapping review, an enabled transform is
 reported as a MEDIUM risk and makes the assessment `CONDITIONAL`.
+
+### Filter compatibility assessment
+
+Migration projects can declare the operators used by the existing application
+and include representative filters. Operators found inside examples are added
+automatically to the declared requirements:
+
+```yaml
+filters:
+  required_operators:
+    - "$eq"
+    - "$lt"
+    - "$in"
+    - "$and"
+  examples:
+    - name: ai_under_10000
+      expression:
+        "$and":
+          - category:
+              "$eq": "AI"
+          - price:
+              "$lt": 10000
+```
+
+VecPort compares those requirements with source and target driver
+capabilities. Generate a customer-facing Markdown deliverable with:
+
+```bash
+vecport project filter-report \
+  --config migration-intake.yml \
+  --output reports/filter-mapping.md
+```
+
+The report identifies operators that can be migrated directly and operators
+that require application code changes. Unknown or driver-specific operators
+remain visible as `UNSUPPORTED` instead of being silently discarded. Generated
+reports may contain customer-specific project information, so `reports/` is
+ignored by Git and must not be committed.
 
 ## Cross-Database Migration
 

@@ -4,6 +4,9 @@ import pytest
 
 from vecport.cli import main
 from vecport.core.config import ConfigError
+from vecport.core.filter_compatibility import (
+    required_filter_operators,
+)
 from vecport.core.models import (
     Capabilities,
     CollectionInfo,
@@ -188,6 +191,10 @@ def test_parse_migration_project():
     assert project.data.dimension == 3
     assert project.migration.batch_size == 2
     assert project.benchmark.queries == 50
+    assert (
+        project.filter_requirements.required_operators
+        == ("$eq", "$lt")
+    )
     assert project.metadata_transform is None
     assert "localhost" not in repr(
         project.source
@@ -425,7 +432,9 @@ def test_assessment_reports_missing_filter_operator():
         target,
     )
 
-    assert assessment.risk_level == "HIGH"
+    assert assessment.risk_level == "MEDIUM"
+    assert assessment.recommendation == "CONDITIONAL"
+    assert assessment.ready
     filters = next(
         check
         for check in assessment.checks
@@ -433,6 +442,61 @@ def test_assessment_reports_missing_filter_operator():
     )
     assert filters.status == "UNSUPPORTED"
     assert "$lt" in filters.detail
+
+
+def test_project_filter_examples_add_requirements():
+    config = _project_config()
+    config["data"]["filter_operators"] = [
+        "$ne",
+    ]
+    config["filters"] = {
+        "required_operators": ["$in"],
+        "examples": [
+            {
+                "name": "ai_under_10000",
+                "expression": {
+                    "$and": [
+                        {
+                            "category": {
+                                "$eq": "AI",
+                            }
+                        },
+                        {
+                            "price": {
+                                "$lt": 10000,
+                            }
+                        },
+                    ]
+                },
+            }
+        ],
+    }
+
+    project = parse_migration_project(config)
+
+    assert set(
+        required_filter_operators(
+            project.filter_requirements
+        )
+    ) == {
+        "$and",
+        "$eq",
+        "$in",
+        "$lt",
+    }
+
+
+def test_project_rejects_invalid_filters():
+    config = _project_config()
+    config["filters"] = {
+        "required_operators": ["eq"]
+    }
+
+    with pytest.raises(
+        ConfigError,
+        match="Invalid filters configuration",
+    ):
+        parse_migration_project(config)
 
 
 def test_project_check_cli_is_read_only_and_hides_urls(
@@ -500,7 +564,153 @@ metadata_transform:
     assert "Enabled:                  YES" in captured.out
     assert "Rename fields:            1" in captured.out
     assert "Strict:                   NO" in captured.out
+    assert "Filter compatibility" in captured.out
+    assert any(
+        line.startswith("$eq")
+        and line.endswith("SUPPORTED")
+        for line in captured.out.splitlines()
+    )
+    assert "Unsupported operators      None" in captured.out
+    assert "Filter migration           READY" in captured.out
     assert "Risk level: MEDIUM" in captured.out
     assert "Migration PoC: CONDITIONAL" in captured.out
     assert "No data will be written." in captured.out
     assert "localhost" not in captured.out
+
+
+def test_project_filter_report_cli_writes_markdown(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    config_path = tmp_path / "migration-intake.yml"
+    output_path = tmp_path / "reports" / "filter-mapping.md"
+    config_path.write_text(
+        """
+project:
+  name: customer-demo
+source:
+  driver: qdrant
+  connection: "vecport://qdrant?url=http://localhost:6333"
+  collection: documents
+target:
+  driver: milvus
+  connection: "vecport://milvus?uri=http://localhost:19530"
+  collection: documents_migrated
+data:
+  estimated_records: 2
+  dimension: 3
+filters:
+  required_operators: ["$eq", "$text"]
+""",
+        encoding="utf-8",
+    )
+    source, target = _drivers(
+        target_operators=("$eq",)
+    )
+
+    def connect(url, **overrides):
+        assert overrides == {}
+        if "qdrant" in url:
+            return source
+        return target
+
+    monkeypatch.setattr(
+        "vecport.cli.connect_url",
+        connect,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vecport",
+            "project",
+            "filter-report",
+            "--config",
+            str(config_path),
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    result = main()
+    captured = capsys.readouterr()
+    markdown = output_path.read_text(
+        encoding="utf-8"
+    )
+
+    assert result == 0
+    assert source.closed
+    assert target.closed
+    assert "Filter migration: CONDITIONAL" in markdown
+    assert "| $text |" in markdown
+    assert "Review or rewrite `$text` usage." in markdown
+    assert str(output_path) in captured.out
+    assert "localhost" not in captured.out
+
+
+def test_project_check_cli_reports_conditional_filters(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    path = tmp_path / "migration-intake.yml"
+    path.write_text(
+        """
+project:
+  name: customer-demo
+source:
+  driver: qdrant
+  connection: "vecport://qdrant?url=http://localhost:6333"
+  collection: documents
+target:
+  driver: milvus
+  connection: "vecport://milvus?uri=http://localhost:19530"
+  collection: documents_migrated
+data:
+  estimated_records: 2
+  dimension: 3
+filters:
+  required_operators: ["$eq", "$text"]
+""",
+        encoding="utf-8",
+    )
+    source, target = _drivers(
+        target_operators=("$eq",)
+    )
+
+    def connect(url, **overrides):
+        assert overrides == {}
+        if "qdrant" in url:
+            return source
+        return target
+
+    monkeypatch.setattr(
+        "vecport.cli.connect_url",
+        connect,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vecport",
+            "project",
+            "check",
+            "--config",
+            str(path),
+        ],
+    )
+
+    result = main()
+    captured = capsys.readouterr()
+
+    assert result == 0
+    assert any(
+        line.startswith("$text")
+        and line.endswith("UNSUPPORTED")
+        for line in captured.out.splitlines()
+    )
+    assert "Unsupported operators      $text" in captured.out
+    assert "Filter migration           CONDITIONAL" in captured.out
+    assert "Risk level: MEDIUM" in captured.out
+    assert "Migration PoC: CONDITIONAL" in captured.out

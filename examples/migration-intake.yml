@@ -17,16 +17,27 @@ data:
   collection_count: 1
   vector_mode: dense
   metadata_mapping: false
-  filter_operators:
+
+filters:
+  required_operators:
     - "$eq"
-    - "$ne"
-    - "$gt"
-    - "$gte"
     - "$lt"
-    - "$lte"
     - "$in"
     - "$and"
-    - "$or"
+  examples:
+    - name: ai_under_10000
+      expression:
+        "$and":
+          - category:
+              "$eq": "AI"
+          - price:
+              "$lt": 10000
+    - name: selected_categories
+      expression:
+        category:
+          "$in":
+            - AI
+            - Finance
 
 metadata_transform:
   rename:
