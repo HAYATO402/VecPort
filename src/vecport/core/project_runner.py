@@ -575,6 +575,15 @@ def _run_search_stage(
         queries,
         expected_dimension=project.data.dimension,
     )
+    prepare_for_search = getattr(
+        target,
+        "prepare_for_search",
+        None,
+    )
+    if callable(prepare_for_search):
+        prepare_for_search(
+            project.target.collection
+        )
     report = compare_search_results(
         source_db=source,
         target_db=target,

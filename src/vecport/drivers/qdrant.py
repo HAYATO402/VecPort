@@ -461,6 +461,11 @@ class QdrantDriver(VectorDatabase):
         return CollectionInfo(
             name=name,
             exists=True,
+            record_count=getattr(
+                info,
+                "points_count",
+                None,
+            ),
             dimension=dimension,
             distance_metric=distance_metric,
             index_type=(

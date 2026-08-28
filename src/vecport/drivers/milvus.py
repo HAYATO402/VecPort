@@ -13,6 +13,52 @@ from vecport.core.models import (
 )
 
 
+def _migration_index_type(
+    info: CollectionInfo,
+) -> str:
+    """Choose an index that preserves the source search behavior."""
+    source_index = (
+        info.index_type
+        or ""
+    ).upper()
+
+    if source_index == "FLAT":
+        return "FLAT"
+
+    if source_index != "HNSW":
+        return "AUTOINDEX"
+
+    threshold = (
+        info.index_params
+        or {}
+    ).get("full_scan_threshold")
+
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or info.record_count is None
+        or info.dimension is None
+        or info.record_count < 0
+        or info.dimension <= 0
+    ):
+        return "AUTOINDEX"
+
+    # Qdrant defines full_scan_threshold in kilobytes of
+    # float32 vector data. Match that exact-search boundary
+    # instead of translating it to an approximate Milvus index.
+    vector_size_kb = (
+        info.record_count
+        * info.dimension
+        * 4
+        / 1024
+    )
+
+    if vector_size_kb <= float(threshold):
+        return "FLAT"
+
+    return "AUTOINDEX"
+
+
 class MilvusDriver(VectorDatabase):
 
     def __init__(
@@ -192,6 +238,27 @@ class MilvusDriver(VectorDatabase):
             )
 
         return results
+
+    def prepare_for_search(
+        self,
+        collection: str,
+    ) -> None:
+        self.client.flush(
+            collection_name=collection,
+        )
+        refresh_load = getattr(
+            self.client,
+            "refresh_load",
+            None,
+        )
+        if callable(refresh_load):
+            refresh_load(
+                collection_name=collection,
+            )
+        else:
+            self.client.load_collection(
+                collection_name=collection,
+            )
 
     def capabilities(
         self,
@@ -596,7 +663,9 @@ class MilvusDriver(VectorDatabase):
 
         index_params.add_index(
             field_name="vector",
-            index_type="AUTOINDEX",
+            index_type=_migration_index_type(
+                info
+            ),
             metric_type=metrics[
                 metric
             ],
