@@ -1153,6 +1153,41 @@ Query datasets may contain customer information. Keep them under the local
 `customer-data/` directory, which is ignored by Git. Generated Markdown shows
 only aggregate metrics and does not include query IDs or result document IDs.
 
+### Customer migration report
+
+After completing migration verification, filter assessment, application code
+analysis, and search comparison, VecPort can generate one consolidated,
+customer-facing PoC report:
+
+```bash
+vecport project customer-report \
+  --config migration-intake.yml \
+  --verification reports/verification.json \
+  --filter-report reports/filter-mapping.json \
+  --code-report reports/search-code-migration.json \
+  --search-report reports/search-comparison.json \
+  --output reports/migration-report.md
+```
+
+Create the structured sidecars by adding `--json-output` to `filter-report`,
+`code-report`, and `search-report`. The consolidated report includes:
+
+- executive migration summary
+- schema and metadata mapping
+- filter compatibility
+- application code migration status
+- data verification
+- search quality comparison
+- latency comparison
+- risks and remaining manual work
+- production migration recommendation
+
+The report describes the tested PoC and is not a production-readiness
+certification. Structured artifacts exclude connection URLs, credentials,
+customer source code, query vectors, query IDs, and result record IDs.
+Generated customer reports remain local under `reports/` and must not be
+committed to the VecPort repository.
+
 ## Cross-Database Migration
 
 VecPort can migrate vector records between supported vector databases using the same common interface.

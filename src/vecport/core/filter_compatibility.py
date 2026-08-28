@@ -119,6 +119,40 @@ class FilterCompatibilityReport:
         )
 
 
+def filter_report_to_dict(
+    report: FilterCompatibilityReport,
+) -> dict[str, Any]:
+    """Return a credential-free artifact for report consolidation."""
+
+    return {
+        "type": "filter_compatibility",
+        "source_driver": report.source_driver,
+        "target_driver": report.target_driver,
+        "passed": report.passed,
+        "recommendation": report.recommendation,
+        "unsupported_operators": list(
+            report.unsupported_operators
+        ),
+        "checks": [
+            {
+                "operator": check.operator,
+                "description": check.description,
+                "source_supported": (
+                    check.source_supported
+                ),
+                "target_supported": (
+                    check.target_supported
+                ),
+                "in_vecport_dsl": (
+                    check.in_vecport_dsl
+                ),
+                "passed": check.passed,
+            }
+            for check in report.checks
+        ],
+    }
+
+
 def collect_filter_operators(
     value: Any,
 ) -> tuple[str, ...]:

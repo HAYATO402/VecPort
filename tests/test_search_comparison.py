@@ -428,6 +428,7 @@ def test_search_report_cli_writes_aggregate_report(
     config_path = tmp_path / "migration-intake.yml"
     query_path = tmp_path / "customer-data" / "queries.jsonl"
     output_path = tmp_path / "reports" / "search.md"
+    json_path = tmp_path / "reports" / "search.json"
     query_path.parent.mkdir()
     _write_cli_project(config_path)
     _write_cli_queries(query_path)
@@ -461,6 +462,8 @@ def test_search_report_cli_writes_aggregate_report(
             str(query_path),
             "--output",
             str(output_path),
+            "--json-output",
+            str(json_path),
         ],
     )
 
@@ -468,6 +471,9 @@ def test_search_report_cli_writes_aggregate_report(
     captured = capsys.readouterr()
     markdown = output_path.read_text(
         encoding="utf-8"
+    )
+    payload = json.loads(
+        json_path.read_text(encoding="utf-8")
     )
 
     assert result == 0
@@ -479,6 +485,10 @@ def test_search_report_cli_writes_aggregate_report(
     assert "private-doc-a" not in markdown
     assert "localhost" not in markdown
     assert "localhost" not in captured.out
+    assert payload["type"] == "search_comparison"
+    assert "query_results" not in payload
+    assert "private-query-id" not in json.dumps(payload)
+    assert "private-doc-a" not in json.dumps(payload)
 
 
 def test_search_report_cli_missing_queries_fails_before_connect(

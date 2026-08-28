@@ -134,6 +134,41 @@ class SearchComparisonReport:
         return "MANUAL_REVIEW"
 
 
+def search_comparison_report_to_dict(
+    report: SearchComparisonReport,
+) -> dict[str, Any]:
+    """Return aggregate metrics without query or document identifiers."""
+
+    return {
+        "type": "search_comparison",
+        "source_driver": report.source_driver,
+        "target_driver": report.target_driver,
+        "top_k": report.top_k,
+        "queries_compared": report.queries_compared,
+        "recall_at_k": report.recall_at_k,
+        "top1_match_rate": report.top1_match_rate,
+        "average_overlap": report.average_overlap,
+        "quality_passed": report.quality_passed,
+        "recommendation": report.recommendation,
+        "source_latency": {
+            "p50_ms": report.source_latency.p50_ms,
+            "p95_ms": report.source_latency.p95_ms,
+            "p99_ms": report.source_latency.p99_ms,
+            "average_ms": (
+                report.source_latency.average_ms
+            ),
+        },
+        "target_latency": {
+            "p50_ms": report.target_latency.p50_ms,
+            "p95_ms": report.target_latency.p95_ms,
+            "p99_ms": report.target_latency.p99_ms,
+            "average_ms": (
+                report.target_latency.average_ms
+            ),
+        },
+    }
+
+
 def _validate_query(
     *,
     query_id: Any,
