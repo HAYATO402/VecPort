@@ -5,6 +5,7 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from vecport.core.errors import (
     SearchCodeMigrationError,
@@ -65,6 +66,40 @@ class SearchCodeMigrationReport:
             return "MANUAL_REVIEW"
 
         return "READY_FOR_PATCH"
+
+
+def code_migration_report_to_dict(
+    report: SearchCodeMigrationReport,
+) -> dict[str, Any]:
+    """Return an artifact without source code, paths, or target code."""
+
+    return {
+        "type": "search_code_migration",
+        "source_driver": report.source_driver,
+        "target_driver": report.target_driver,
+        "target_framework": report.target_framework,
+        "status": report.status,
+        "requires_manual_review": (
+            report.requires_manual_review
+        ),
+        "findings": [
+            {
+                "file_name": finding.file_name,
+                "framework": finding.framework,
+                "detected_driver": (
+                    finding.detected_driver
+                ),
+                "operations": list(
+                    finding.operations
+                ),
+                "filter_keywords": list(
+                    finding.filter_keywords
+                ),
+            }
+            for finding in report.findings
+        ],
+        "notes": list(report.notes),
+    }
 
 
 _DRIVER_IMPORT_MARKERS = {

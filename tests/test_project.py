@@ -1,3 +1,4 @@
+import json
 import sys
 
 import pytest
@@ -647,6 +648,7 @@ def test_project_filter_report_cli_writes_markdown(
 ):
     config_path = tmp_path / "migration-intake.yml"
     output_path = tmp_path / "reports" / "filter-mapping.md"
+    json_path = tmp_path / "reports" / "filter-mapping.json"
     config_path.write_text(
         """
 project:
@@ -692,6 +694,8 @@ filters:
             str(config_path),
             "--output",
             str(output_path),
+            "--json-output",
+            str(json_path),
         ],
     )
 
@@ -699,6 +703,9 @@ filters:
     captured = capsys.readouterr()
     markdown = output_path.read_text(
         encoding="utf-8"
+    )
+    payload = json.loads(
+        json_path.read_text(encoding="utf-8")
     )
 
     assert result == 0
@@ -709,6 +716,9 @@ filters:
     assert "Review or rewrite `$text` usage." in markdown
     assert str(output_path) in captured.out
     assert "localhost" not in captured.out
+    assert payload["type"] == "filter_compatibility"
+    assert payload["recommendation"] == "CONDITIONAL"
+    assert "connection" not in payload
 
 
 def test_project_check_cli_reports_conditional_filters(

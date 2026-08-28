@@ -12,6 +12,7 @@ from vecport.core.benchmark_dataset import (
 )
 from vecport.core.code_migration import (
     build_search_code_migration_report,
+    code_migration_report_to_dict,
     render_search_code_report,
 )
 from vecport.core.compliance import (
@@ -19,10 +20,15 @@ from vecport.core.compliance import (
     run_compliance,
 )
 from vecport.core.config import load_config
+from vecport.core.customer_report import (
+    load_customer_report_artifacts,
+    render_customer_migration_report,
+)
 from vecport.core.errors import (
     SearchCodeMigrationError,
 )
 from vecport.core.filter_compatibility import (
+    filter_report_to_dict,
     render_filter_report,
 )
 from vecport.core.migration import (
@@ -49,6 +55,7 @@ from vecport.core.search_comparison import (
     compare_search_results,
     load_search_queries,
     render_search_comparison_report,
+    search_comparison_report_to_dict,
     validate_query_dimensions,
 )
 
@@ -559,6 +566,7 @@ def _run_project_check_command(
 def _run_project_filter_report_command(
     config: dict,
     output: str,
+    json_output: str | None = None,
 ) -> int:
     assessment = _assess_project_config(
         config
@@ -574,6 +582,13 @@ def _run_project_filter_report_command(
         ),
         encoding="utf-8",
     )
+    if json_output is not None:
+        write_json_report(
+            json_output,
+            filter_report_to_dict(
+                assessment.filter_report
+            ),
+        )
     print(
         "Filter compatibility report written: "
         f"{output_path}"
@@ -585,6 +600,7 @@ def _run_project_code_report_command(
     config: dict,
     source_code: list[str],
     output: str,
+    json_output: str | None = None,
 ) -> int:
     try:
         project = parse_migration_project(
@@ -618,6 +634,13 @@ def _run_project_code_report_command(
             markdown,
             encoding="utf-8",
         )
+        if json_output is not None:
+            write_json_report(
+                json_output,
+                code_migration_report_to_dict(
+                    report
+                ),
+            )
 
     except SearchCodeMigrationError as error:
         print(
@@ -645,6 +668,7 @@ def _run_project_search_report_command(
     config: dict,
     queries_path: str,
     output: str,
+    json_output: str | None = None,
 ) -> int:
     try:
         project = parse_migration_project(
@@ -721,6 +745,13 @@ def _run_project_search_report_command(
             markdown,
             encoding="utf-8",
         )
+        if json_output is not None:
+            write_json_report(
+                json_output,
+                search_comparison_report_to_dict(
+                    report
+                ),
+            )
 
     except OSError:
         print(
@@ -752,6 +783,58 @@ def _run_project_search_report_command(
     print(
         "Recommendation: "
         f"{report.recommendation}"
+    )
+    print(f"Output: {output_path}")
+    return 0
+
+
+def _run_project_customer_report_command(
+    config: dict,
+    *,
+    verification_path: str,
+    filter_report_path: str,
+    code_report_path: str,
+    search_report_path: str,
+    output: str,
+) -> int:
+    try:
+        artifacts = load_customer_report_artifacts(
+            verification_path=verification_path,
+            filter_report_path=filter_report_path,
+            code_report_path=code_report_path,
+            search_report_path=search_report_path,
+        )
+        markdown = render_customer_migration_report(
+            project=config,
+            verification=artifacts.verification,
+            filter_report=artifacts.filter_report,
+            code_report=artifacts.code_report,
+            search_report=artifacts.search_report,
+        )
+        output_path = Path(output)
+        output_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+        output_path.write_text(
+            markdown,
+            encoding="utf-8",
+        )
+    except OSError:
+        print(
+            "Customer report error: "
+            "failed to write report."
+        )
+        return 1
+    except (TypeError, ValueError) as error:
+        print(
+            "Customer report error: "
+            f"{error}"
+        )
+        return 1
+
+    print(
+        "Customer migration PoC report generated."
     )
     print(f"Output: {output_path}")
     return 0
@@ -1096,6 +1179,10 @@ def main():
         required=True,
         help="Output Markdown report path.",
     )
+    project_filter_report.add_argument(
+        "--json-output",
+        help="Optional structured JSON report path.",
+    )
     project_code_report = (
         project_subparsers.add_parser(
             "code-report",
@@ -1125,6 +1212,10 @@ def main():
         required=True,
         help="Output Markdown report path.",
     )
+    project_code_report.add_argument(
+        "--json-output",
+        help="Optional structured JSON report path.",
+    )
     project_search_report = (
         project_subparsers.add_parser(
             "search-report",
@@ -1148,6 +1239,49 @@ def main():
         "--output",
         required=True,
         help="Output Markdown report path.",
+    )
+    project_search_report.add_argument(
+        "--json-output",
+        help="Optional structured JSON report path.",
+    )
+    project_customer_report = (
+        project_subparsers.add_parser(
+            "customer-report",
+            help=(
+                "Generate a consolidated customer-facing "
+                "migration PoC report."
+            ),
+        )
+    )
+    project_customer_report.add_argument(
+        "--config",
+        required=True,
+        help="Migration intake YAML file.",
+    )
+    project_customer_report.add_argument(
+        "--verification",
+        required=True,
+        help="Migration verification JSON artifact.",
+    )
+    project_customer_report.add_argument(
+        "--filter-report",
+        required=True,
+        help="Filter compatibility JSON artifact.",
+    )
+    project_customer_report.add_argument(
+        "--code-report",
+        required=True,
+        help="Search code migration JSON artifact.",
+    )
+    project_customer_report.add_argument(
+        "--search-report",
+        required=True,
+        help="Search comparison JSON artifact.",
+    )
+    project_customer_report.add_argument(
+        "--output",
+        required=True,
+        help="Output customer Markdown report path.",
     )
 
     plugin = commands.add_parser(
@@ -1257,6 +1391,7 @@ def main():
         return _run_project_filter_report_command(
             config,
             args.output,
+            args.json_output,
         )
 
     if (
@@ -1267,6 +1402,7 @@ def main():
             config,
             args.source_code,
             args.output,
+            args.json_output,
         )
 
     if (
@@ -1277,6 +1413,20 @@ def main():
             config,
             args.queries,
             args.output,
+            args.json_output,
+        )
+
+    if (
+        args.command == "project"
+        and args.project_command == "customer-report"
+    ):
+        return _run_project_customer_report_command(
+            config,
+            verification_path=args.verification,
+            filter_report_path=args.filter_report,
+            code_report_path=args.code_report,
+            search_report_path=args.search_report,
+            output=args.output,
         )
 
     if args.command == "compliance":

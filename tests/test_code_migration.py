@@ -1,3 +1,4 @@
+import json
 import sys
 
 import pytest
@@ -341,6 +342,7 @@ def test_code_report_cli_writes_secure_markdown(
     config_path = tmp_path / "migration-intake.yml"
     source_file = tmp_path / "customer-code" / "search.py"
     output_path = tmp_path / "reports" / "code-report.md"
+    json_path = tmp_path / "reports" / "code-report.json"
     source_file.parent.mkdir()
     _write_project_config(config_path)
     _write_qdrant_search(
@@ -373,6 +375,8 @@ def test_code_report_cli_writes_secure_markdown(
             str(source_file),
             "--output",
             str(output_path),
+            "--json-output",
+            str(json_path),
         ],
     )
 
@@ -380,6 +384,9 @@ def test_code_report_cli_writes_secure_markdown(
     captured = capsys.readouterr()
     markdown = output_path.read_text(
         encoding="utf-8"
+    )
+    payload = json.loads(
+        json_path.read_text(encoding="utf-8")
     )
 
     assert result == 0
@@ -391,6 +398,9 @@ def test_code_report_cli_writes_secure_markdown(
     assert source_file.read_text(
         encoding="utf-8"
     ) == source_before
+    assert payload["type"] == "search_code_migration"
+    assert "target_example" not in payload
+    assert "local-only-value" not in json.dumps(payload)
 
 
 def test_code_report_cli_manual_review_is_success(
