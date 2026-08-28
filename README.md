@@ -1188,6 +1188,52 @@ customer source code, query vectors, query IDs, and result record IDs.
 Generated customer reports remain local under `reports/` and must not be
 committed to the VecPort repository.
 
+### Small Migration PoC workflow
+
+VecPort can run the complete migration PoC workflow with one command. Start in
+read-only planning mode:
+
+```bash
+vecport project run \
+  --config migration-intake.yml \
+  --output-dir runs
+```
+
+Planning validates the project, connects to both databases, assesses the
+migration, and writes only the assessment, migration plan, and safe run
+manifest. It does not create, replace, or update target records.
+
+Use the explicit `--execute` flag for a complete PoC run:
+
+```bash
+vecport project run \
+  --config migration-intake.yml \
+  --source-code customer-code/search.py \
+  --queries customer-data/search-queries.jsonl \
+  --output-dir runs \
+  --execute
+```
+
+Repeat `--source-code` to analyze up to three Python files. The workflow runs:
+
+1. project assessment
+2. migration planning
+3. metadata-aware vector migration
+4. migration verification
+5. filter compatibility analysis
+6. application search-code analysis
+7. search quality and latency comparison
+8. consolidated customer report generation
+
+Each run receives a new isolated directory containing numbered JSON and
+Markdown artifacts. Manifests and structured reports omit connection URLs,
+credentials, customer source code, query vectors, query IDs, and result record
+IDs. Customer inputs are read in place and are never copied into the run.
+
+Customer inputs and generated run artifacts remain local. The `customer-code/`,
+`customer-data/`, `reports/`, and `runs/` directories are ignored by Git and
+must not be committed to the VecPort repository.
+
 ## Cross-Database Migration
 
 VecPort can migrate vector records between supported vector databases using the same common interface.

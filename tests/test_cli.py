@@ -1,5 +1,8 @@
 import json
 import sys
+from types import SimpleNamespace
+
+import pytest
 
 from vecport.cli import main
 from vecport.core.compliance import (
@@ -244,3 +247,174 @@ def test_compliance_command_rejects_small_dimension(
 
     assert result == 1
     assert "must be at least 2" in captured.out
+
+
+def _write_project_run_config(tmp_path):
+    path = tmp_path / "migration-intake.yml"
+    path.write_text(
+        """
+project:
+  name: customer-demo
+source:
+  driver: qdrant
+  connection: vecport://qdrant
+  collection: documents
+target:
+  driver: milvus
+  connection: vecport://milvus
+  collection: documents_migrated
+data:
+  estimated_records: 2
+  dimension: 3
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _project_run_result(tmp_path, *, status="COMPLETED"):
+    return SimpleNamespace(
+        status=status,
+        recommendation=(
+            "NOT_READY"
+            if status == "VERIFICATION_FAILED"
+            else "READY"
+        ),
+        root=tmp_path / "runs" / "customer-demo" / "test",
+        stages=(
+            SimpleNamespace(
+                name="assessment",
+                status="READY",
+            ),
+            SimpleNamespace(
+                name="plan",
+                status="READY",
+            ),
+        ),
+    )
+
+
+def test_project_run_help(monkeypatch, capsys):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["vecport", "project", "run", "--help"],
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+
+    output = capsys.readouterr().out
+    assert exit_info.value.code == 0
+    assert "--source-code" in output
+    assert "--queries" in output
+    assert "--output-dir" in output
+    assert "--execute" in output
+
+
+def test_project_run_requires_source_code(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    config = _write_project_run_config(tmp_path)
+    monkeypatch.setattr(
+        "vecport.cli.run_migration_project",
+        lambda *args, **kwargs: pytest.fail(
+            "runner must not be called"
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vecport",
+            "project",
+            "run",
+            "--config",
+            str(config),
+            "--queries",
+            "queries.jsonl",
+            "--execute",
+        ],
+    )
+
+    assert main() == 1
+    assert "--source-code is required" in capsys.readouterr().out
+
+
+def test_project_run_requires_queries(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    config = _write_project_run_config(tmp_path)
+    monkeypatch.setattr(
+        "vecport.cli.run_migration_project",
+        lambda *args, **kwargs: pytest.fail(
+            "runner must not be called"
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vecport",
+            "project",
+            "run",
+            "--config",
+            str(config),
+            "--source-code",
+            "search.py",
+            "--execute",
+        ],
+    )
+
+    assert main() == 1
+    assert "--queries is required" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_exit"),
+    [("COMPLETED", 0), ("VERIFICATION_FAILED", 1)],
+)
+def test_project_run_exit_status(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    status,
+    expected_exit,
+):
+    config = _write_project_run_config(tmp_path)
+    source_code = tmp_path / "search.py"
+    queries = tmp_path / "queries.jsonl"
+    source_code.write_text("pass\n", encoding="utf-8")
+    queries.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "vecport.cli.run_migration_project",
+        lambda *args, **kwargs: _project_run_result(
+            tmp_path,
+            status=status,
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "vecport",
+            "project",
+            "run",
+            "--config",
+            str(config),
+            "--source-code",
+            str(source_code),
+            "--queries",
+            str(queries),
+            "--execute",
+        ],
+    )
+
+    assert main() == expected_exit
+    output = capsys.readouterr().out
+    assert "VecPort Small Migration PoC" in output
+    assert "Recommendation:" in output

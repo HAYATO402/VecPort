@@ -25,6 +25,7 @@ from vecport.core.customer_report import (
     render_customer_migration_report,
 )
 from vecport.core.errors import (
+    ProjectRunError,
     SearchCodeMigrationError,
 )
 from vecport.core.filter_compatibility import (
@@ -46,6 +47,10 @@ from vecport.core.project import (
     MigrationAssessment,
     assess_migration_project,
     parse_migration_project,
+)
+from vecport.core.project_runner import (
+    ProjectRunResult,
+    run_migration_project,
 )
 from vecport.core.reporting import (
     write_csv_report,
@@ -840,6 +845,96 @@ def _run_project_customer_report_command(
     return 0
 
 
+def _run_project_run_command(
+    config: dict,
+    args: argparse.Namespace,
+) -> int:
+    if args.execute and not args.source_code:
+        print(
+            "--source-code is required "
+            "for a full project run."
+        )
+        return 1
+
+    if args.execute and not args.queries:
+        print(
+            "--queries is required "
+            "for a full project run."
+        )
+        return 1
+
+    try:
+        result = run_migration_project(
+            config,
+            source_code_files=args.source_code,
+            queries_path=args.queries,
+            output_dir=args.output_dir,
+            execute=args.execute,
+            source_options=_connection_overrides(
+                "SOURCE"
+            ),
+            target_options=_connection_overrides(
+                "TARGET"
+            ),
+        )
+    except ProjectRunError as error:
+        print(f"Project run error: {error}")
+        return 1
+
+    _print_project_run_result(result)
+    return (
+        1
+        if result.status == "VERIFICATION_FAILED"
+        else 0
+    )
+
+
+def _print_project_run_result(
+    result: ProjectRunResult,
+) -> None:
+    labels = {
+        "assessment": "Project assessment",
+        "plan": "Migration plan",
+        "migration": "Data migration",
+        "verification": "Verification",
+        "filter": "Filter compatibility",
+        "code": "Search code migration",
+        "search": "Search comparison",
+        "customer_report": "Customer report",
+    }
+    print("VecPort Small Migration PoC")
+    print()
+    total = len(result.stages)
+
+    for index, stage in enumerate(result.stages, start=1):
+        label = labels.get(stage.name, stage.name)
+        print(
+            f"[{index}/{total}] "
+            f"{label:.<30} "
+            f"{stage.status}"
+        )
+
+    print()
+    if result.recommendation is not None:
+        print(
+            "Recommendation: "
+            f"{result.recommendation}"
+        )
+        print()
+
+    if result.status == "PLAN_ONLY":
+        print("Plan-only run complete.")
+        print("No data was written.")
+    elif result.status == "VERIFICATION_FAILED":
+        print("Project run completed with failed verification.")
+    else:
+        print("Project run complete.")
+
+    print()
+    print("Artifacts:")
+    print(result.root)
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -1283,6 +1378,46 @@ def main():
         required=True,
         help="Output customer Markdown report path.",
     )
+    project_run = (
+        project_subparsers.add_parser(
+            "run",
+            help=(
+                "Run a complete Small Migration "
+                "PoC workflow."
+            ),
+        )
+    )
+    project_run.add_argument(
+        "--config",
+        required=True,
+        help="Migration intake YAML file.",
+    )
+    project_run.add_argument(
+        "--source-code",
+        action="append",
+        default=[],
+        help=(
+            "Python source file to analyze. "
+            "May be specified up to three times."
+        ),
+    )
+    project_run.add_argument(
+        "--queries",
+        help="Local JSONL query-vector dataset.",
+    )
+    project_run.add_argument(
+        "--output-dir",
+        default="runs",
+        help="Local directory for isolated run artifacts.",
+    )
+    project_run.add_argument(
+        "--execute",
+        action="store_true",
+        help=(
+            "Execute migration writes. Without this flag, "
+            "the workflow remains read-only."
+        ),
+    )
 
     plugin = commands.add_parser(
         "plugin",
@@ -1427,6 +1562,15 @@ def main():
             code_report_path=args.code_report,
             search_report_path=args.search_report,
             output=args.output,
+        )
+
+    if (
+        args.command == "project"
+        and args.project_command == "run"
+    ):
+        return _run_project_run_command(
+            config,
+            args,
         )
 
     if args.command == "compliance":

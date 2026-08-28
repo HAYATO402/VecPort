@@ -1015,6 +1015,10 @@ def verify_migration(
     batch_size: int = 100,
     rel_tol: float = 1e-6,
     abs_tol: float = 1e-6,
+    record_transform: (
+        Callable[[VectorRecord], VectorRecord]
+        | None
+    ) = None,
 ) -> VerificationReport:
 
     if batch_size <= 0:
@@ -1101,6 +1105,9 @@ def verify_migration(
         source_collection,
         batch_size=batch_size,
     ):
+
+        if record_transform is not None:
+            record = record_transform(record)
 
         source_count += 1
         source_batch.append(record)

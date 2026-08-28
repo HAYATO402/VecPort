@@ -28,6 +28,10 @@ class SearchCodeMigrationError(VecPortError):
     """Raised when search code migration analysis fails."""
 
 
+class ProjectRunError(VecPortError):
+    """Raised when a migration project run cannot be completed."""
+
+
 class DriverPluginError(VecPortError):
     """Base exception for driver plugin failures."""
 
