@@ -315,10 +315,10 @@ def render_metadata_mapping(
 
     if isinstance(defaults, Mapping) and defaults:
         lines.extend(["### Defaults", ""])
-        for field_name, value in defaults.items():
+        for field_name in defaults:
             lines.append(
                 f"- `{_markdown_text(field_name)}`: "
-                f"`{_markdown_text(value)}`"
+                "configured value omitted"
             )
         lines.append("")
 

@@ -322,7 +322,8 @@ def test_metadata_mapping_renderer():
 
     assert "`old_category` → `category`" in markdown
     assert "`debug`" in markdown
-    assert "`source`: `legacy`" in markdown
+    assert "`source`: configured value omitted" in markdown
+    assert "legacy" not in markdown
     assert "`price` → `int`" in markdown
 
 
