@@ -42,4 +42,4 @@ class CollectionInfo:
     index_params: dict[str, object] | None = None
 
     metadata_schema: dict[str, str] | None = None
-    
+    record_count: int | None = None

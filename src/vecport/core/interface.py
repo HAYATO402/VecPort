@@ -76,6 +76,12 @@ class VectorDatabase(ABC):
     ) -> list[SearchResult]:
         pass
 
+    def prepare_for_search(
+        self,
+        collection: str,
+    ) -> None:
+        """Make recently written records searchable when required."""
+
     @abstractmethod
     def capabilities(
         self,

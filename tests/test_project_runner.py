@@ -35,6 +35,7 @@ class FakeProjectDriver:
         self.dimensions = {}
         self.write_calls = 0
         self.closed = False
+        self.prepared_collections = []
 
     def capabilities(self):
         return Capabilities(
@@ -106,6 +107,9 @@ class FakeProjectDriver:
                 [],
             )[:top_k]
         ]
+
+    def prepare_for_search(self, collection):
+        self.prepared_collections.append(collection)
 
     def close(self):
         self.closed = True
@@ -324,6 +328,9 @@ def test_full_run_generates_every_artifact(tmp_path):
     }.isdisjoint({"search.py", "search-queries.jsonl"})
     target_records = target.collections["documents_migrated"]
     assert target_records[0].metadata == {"category": "AI"}
+    assert target.prepared_collections == [
+        "documents_migrated"
+    ]
 
 
 def test_customer_inputs_and_secrets_are_not_copied(tmp_path):
